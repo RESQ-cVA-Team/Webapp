@@ -313,7 +313,7 @@ export default function ChatWindow() {
   }, []);
 
   const applyVisualizationFromCustom = useCallback((custom: unknown, options?: { emitPlanMessage?: boolean }) => {
-    const { setVisualization, addToHistory, setSelectedChartIndex, rememberVisualizationPlan } = useChatStore.getState();
+     const { setVisualization, addToHistory, setSelectedChartIndex, setSelectedStatisticsIndex, rememberVisualizationPlan } = useChatStore.getState();
 
     if (isVisualizationPlanMessageDTO(custom)) {
       const traceId = resolveVisualizationTraceId(custom);
@@ -329,6 +329,7 @@ export default function ChatWindow() {
     if (isVisualizationResponseDTO(custom)) {
       setVisualization(custom);
       addToHistory(custom);
+      setSelectedStatisticsIndex(null);
       setSelectedChartIndex(0);
     }
   }, [emitPlanDebugMessage]);

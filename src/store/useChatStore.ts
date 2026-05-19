@@ -16,6 +16,8 @@ interface ChatStore {
 
   selectedChartIndex: number | null;
   setSelectedChartIndex: (i: number | null) => void;
+  selectedStatisticsIndex: number | null;
+  setSelectedStatisticsIndex: (i: number | null) => void;
 }
 
 export const useChatStore = create<ChatStore>((set) => ({
@@ -35,4 +37,6 @@ export const useChatStore = create<ChatStore>((set) => ({
     })),
   selectedChartIndex: null,
   setSelectedChartIndex: (i) => set({ selectedChartIndex: i }),
+  selectedStatisticsIndex: null,
+  setSelectedStatisticsIndex: (i) => set({ selectedStatisticsIndex: i }),
 }));

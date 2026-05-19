@@ -30,7 +30,7 @@ export default function HomePage() {
               </div>
             </ResizablePanel>
             <ResizableHandle className="min-h-1 bg-transparent" />
-            <ResizablePanel defaultSize={25} minSize={25} collapsible>
+            <ResizablePanel defaultSize={25} minSize={15} collapsible>
               <div className="flex h-full items-center justify-center p-2">
                 <Card className="h-full w-full p-0">
                     <CardContent className="h-full w-full p-2">
