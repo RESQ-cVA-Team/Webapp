@@ -59,7 +59,7 @@ export default function VisualizationWindow() {
 
   const charts = visualization.charts as ChartDTO[];
 
-  if (charts.length === 0 || selectedIndex >= charts.length) {
+  if (charts.length === 0 || selectedIndex === null || selectedIndex >= charts.length) {
     return <div className="text-center text-muted-foreground p-4">{t('visualization.none')}</div>;
   }
 
