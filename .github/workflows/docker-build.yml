@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - master
+      - dev
 
 jobs:
   build:
@@ -30,8 +31,24 @@ jobs:
 
       - name: Build Docker image
         run: |
-          docker build -t ghcr.io/$REPO_NAME_LC:latest .
+          SHORT_SHA=${{ github.sha }}
+          SHORT_SHA=${SHORT_SHA:0:7}
+          
+          if [ "${{ github.ref }}" = "refs/heads/master" ]; then
+            docker build -t ghcr.io/$REPO_NAME_LC:latest -t ghcr.io/$REPO_NAME_LC:master-$SHORT_SHA .
+          elif [ "${{ github.ref }}" = "refs/heads/dev" ]; then
+            docker build -t ghcr.io/$REPO_NAME_LC:dev -t ghcr.io/$REPO_NAME_LC:dev-$SHORT_SHA .
+          fi
 
       - name: Push Docker image to GitHub Container Registry
         run: |
-          docker push ghcr.io/$REPO_NAME_LC:latest
+          SHORT_SHA=${{ github.sha }}
+          SHORT_SHA=${SHORT_SHA:0:7}
+          
+          if [ "${{ github.ref }}" = "refs/heads/master" ]; then
+            docker push ghcr.io/$REPO_NAME_LC:latest
+            docker push ghcr.io/$REPO_NAME_LC:master-$SHORT_SHA
+          elif [ "${{ github.ref }}" = "refs/heads/dev" ]; then
+            docker push ghcr.io/$REPO_NAME_LC:dev
+            docker push ghcr.io/$REPO_NAME_LC:dev-$SHORT_SHA
+          fi
