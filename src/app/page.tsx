@@ -1,6 +1,6 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
-import AlternateHistoryWindow from "@/components/ui/windows/alternateHistoryWindow";
+import AlternateHistoryWindow from "@/components/ui/windows/historyWindow";
 import ChatWindow from "@/components/ui/windows/chatWindow";
 import VisualizationWindow from "@/components/ui/windows/visualizationWindow";
 
