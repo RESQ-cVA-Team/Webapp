@@ -34,8 +34,10 @@ export async function getFeedbackConfigCached(forceRefresh = false): Promise<Fee
   inflightPromise = fetch("/api/feedback/config", {
     method: "GET",
     cache: "no-store",
-  }).then(async (response) => {
+  })
+  .then(async (response) => {
     if (!response.ok) {
+    console.error(`Failed to load feedback config: ${response.status} ${response.statusText}`);
       throw new Error(`Failed to load feedback config (${response.status})`);
     }
 
@@ -43,7 +45,12 @@ export async function getFeedbackConfigCached(forceRefresh = false): Promise<Fee
     cachedValue = payload;
     cachedAt = Date.now();
     return payload;
-  }).finally(() => {
+  })
+  .catch((error) => {
+    console.error("Error fetching feedback config:", error);
+    throw error;
+  })
+  .finally(() => {
     inflightPromise = null;
   });
 

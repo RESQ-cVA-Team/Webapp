@@ -12,6 +12,7 @@ import i18n from "../../../i18n";
 import { LANGUAGE_LABELS, SUPPORTED_LANGUAGES } from "@/locales/config";
 import { getFeedbackConfigCached } from "@/lib/feedbackConfigClient";
 
+
 const baseLanguages: { label: string; value: string }[] = SUPPORTED_LANGUAGES.map((code) => ({ label: LANGUAGE_LABELS[code], value: code }));
 
 export default function TopBar() {
@@ -39,7 +40,10 @@ export default function TopBar() {
 				setBotsByLang(map);
 					setBotLangs(langs);
 			})
-			.catch(() => setBotsByLang({}));
+			.catch((error) => {
+				console.error('Failed to fetch bots:', error);
+				setBotsByLang({});
+			});
 		return () => { cancelled = true };
 	}, []);
 
@@ -51,8 +55,9 @@ export default function TopBar() {
 				if (cancelled) return;
 				setCanViewFeedbackAdmin(data.canViewAdmin === true && data.adminEnabled === true);
 			})
-			.catch(() => {
+			.catch((error) => {
 				if (!cancelled) {
+					console.error('Failed to fetch feedback config:', error);
 					setCanViewFeedbackAdmin(false);
 				}
 			});

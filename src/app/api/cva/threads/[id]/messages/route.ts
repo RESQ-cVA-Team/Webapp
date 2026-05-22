@@ -35,7 +35,7 @@ export async function GET(req: NextRequest, { params }: Params) {
   const baseUrl = getCvaBaseUrl();
   const query = req.nextUrl.searchParams.toString();
   const upstreamUrl = `${baseUrl}/threads/${encodeURIComponent(id)}/messages${query ? `?${query}` : ""}`;
-
+try { 
   const res = await fetch(upstreamUrl, {
     method: "GET",
     headers: {
@@ -43,9 +43,23 @@ export async function GET(req: NextRequest, { params }: Params) {
     },
     cache: "no-store",
   });
-
-  return forwardResponse(res);
+    if (!res.ok) {
+      console.error(`Failed to fetch CVA thread messages: ${res.status} ${res.statusText}`, {
+        upstreamUrl,
+        status: res.status,
+        statusText: res.statusText,
+      }); 
+    }
+  return await forwardResponse(res);
+} catch (error) {
+  console.error("Error fetching CVA thread messages", {
+    upstreamUrl,
+    error,
+  });
+    return new NextResponse("Internal Server Error", { status: 500 });
+  }
 }
+
 
 export async function POST(req: NextRequest, { params }: Params) {
   const token = await getToken({ req });
@@ -65,7 +79,7 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   const { id } = await params;
   const baseUrl = getCvaBaseUrl();
-
+try {
   const res = await fetch(`${baseUrl}/threads/${encodeURIComponent(id)}/messages`, {
     method: "POST",
     headers: {
@@ -74,6 +88,20 @@ export async function POST(req: NextRequest, { params }: Params) {
     },
     body: JSON.stringify(payload),
   });
-
-  return forwardResponse(res);
+    if (!res.ok) {console.error(`Failed to create CVA thread message: ${res.status} ${res.statusText}`, {
+        baseUrl,
+        payload,
+        status: res.status,
+        statusText: res.statusText,
+      });
+    }
+  return await forwardResponse(res);
+} catch (error) {
+  console.error("Error posting CVA thread message", {
+    upstreamUrl: `${baseUrl}/threads/${encodeURIComponent(id)}/messages`,
+    payload,
+    error,
+  });
+    return new NextResponse("Internal Server Error", { status: 500 });
+  }
 }

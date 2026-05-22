@@ -79,15 +79,28 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   if (apiUrl) {
     const senderId = buildRasaSenderId(userId, threadId);
     try {
-      await fetch(`${apiUrl}/conversations/${senderId}/tracker/events`, {
+      const response = await fetch(`${apiUrl}/conversations/${senderId}/tracker/events`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ event: "restart" }),
       });
+
+      if (!response.ok) {
+        console.warn("Rasa tracker reset returned non-OK during thread deletion", {
+          apiUrl,
+          senderId,
+          status: response.status,
+          statusText: response.statusText,
+        });
+      }
     } catch (error) {
-      console.warn("Failed to reset Rasa tracker during thread deletion", error);
+      console.warn("Failed to reset Rasa tracker during thread deletion", {
+        apiUrl,
+        senderId,
+        error,
+      });
     }
   }
 

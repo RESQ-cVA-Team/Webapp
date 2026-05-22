@@ -91,17 +91,20 @@ async function fetchVersionPayload(url: string): Promise<Record<string, unknown>
     });
 
     if (!response.ok) {
+      console.warn(`Version endpoint at ${url} returned non-OK status`, { status: response.status, statusText: response.statusText });
       return { status: response.status, statusText: response.statusText };
     }
 
     const contentType = response.headers.get("content-type") ?? "";
     if (!contentType.toLowerCase().includes("application/json")) {
+      console.warn(`Version endpoint at ${url} did not return JSON`, { contentType });
       return { warning: "non-json-version-response", contentType };
     }
 
     const payload = (await response.json()) as unknown;
     return payload && typeof payload === "object" ? (payload as Record<string, unknown>) : { value: payload };
   } catch (error) {
+    console.error(`Error fetching version from ${url}:`, error instanceof Error ? error.message : error);
     return {
       error: error instanceof Error ? error.message : "version-fetch-failed",
     };

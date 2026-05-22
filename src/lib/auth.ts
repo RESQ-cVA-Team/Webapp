@@ -96,7 +96,11 @@ export const authOptions: AuthOptions = {
 
             const refreshedTokens = await response.json();
 
-            if (!response.ok) throw refreshedTokens;
+            if (!response.ok) {
+              throw new Error(
+                `Token refresh failed: ${response.status} ${response.statusText} ${JSON.stringify(refreshedTokens)}`
+              );
+            }
 
             token.accessToken = refreshedTokens.access_token;
             token.accessTokenExpires = Date.now() + refreshedTokens.expires_in * 1000;
@@ -104,8 +108,9 @@ export const authOptions: AuthOptions = {
             token.accessTokenRefreshedAt = Date.now();
             token.error = undefined;
             return token;
-          } catch {
+          } catch (error) {
             token.error = "RefreshAccessTokenError";
+            console.error("Failed to refresh access token:", error);
             return token;
           }
         } else {

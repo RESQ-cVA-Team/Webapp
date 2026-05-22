@@ -350,6 +350,17 @@ export default function ChatWindow() {
 
   if (obj.type === "connected") return;
 
+  if (obj.type === "lock") {
+    setIsWaitingForBot(true);
+    return;
+  }
+
+  if (obj.type === "release") {
+    setMessages((prev) => prev.filter((message) => message.kind !== "progress"));
+    setIsWaitingForBot(false);
+    return;
+  }
+
   const payloadKey = createIncomingPayloadKey(obj);
   if (payloadKey) {
     const now = Date.now();
@@ -378,8 +389,6 @@ export default function ChatWindow() {
         : null);
 
   if (progressText) {
-    setIsWaitingForBot(true);
-
     setMessages((prev) => {
       const base = prev.filter((m) => m.kind !== "progress");
       return [
@@ -397,7 +406,6 @@ export default function ChatWindow() {
   }
 
   setMessages((prev) => prev.filter((m) => m.kind !== "progress"));
-  setIsWaitingForBot(false);
 
   if (typeof obj.text === "string" && obj.text.length > 0) {
     const botMsg: Message = {
@@ -405,8 +413,6 @@ export default function ChatWindow() {
       sender: "other",
       content: obj.text,
     };
-
-    setIsWaitingForBot(false);
 
     if (Array.isArray(obj.buttons)) {
       const buttons = obj.buttons
@@ -529,8 +535,6 @@ export default function ChatWindow() {
     })
   );
 
-  setIsWaitingForBot(true);
-
   const userMsg: Message = {
     id: crypto.randomUUID(),
     sender: "user",
@@ -559,7 +563,7 @@ export default function ChatWindow() {
   } catch (err) {
     setIsWaitingForBot(false);
 
-    console.error("/api/rasa error:", err);
+    console.error( "/api/rasa error:", err);
 
     const errorMsg: Message = {
       id: crypto.randomUUID(),
