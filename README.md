@@ -58,6 +58,7 @@ KEYCLOAK_ISSUER="https://<keycloak-host>/realms/<realm>"
 NEXTAUTH_SECRET="<random-long-secret>"
 
 ACTION_SERVER_TOKEN="<shared-action-token>"
+LONG_TASK_CALLBACK_TOKEN="<shared-callback-token>"
 RASA_PROXY_TIMEOUT_MS=120000
 RASA_PROXY_TARGETS='{"graphql":"https://<host>","analytics":"https://<host>"}'
 
@@ -174,6 +175,7 @@ Run from VS Code: **Terminal → Run Task**.
 - `NEXTAUTH_URL`
 - `HOSTNAME=0.0.0.0`
 - `ACTION_SERVER_TOKEN`
+- `LONG_TASK_CALLBACK_TOKEN`
 Optional feedback/admin variables:
 
 - `MESSAGE_FEEDBACK_ENABLED`
@@ -225,6 +227,7 @@ services:
       NEXTAUTH_URL: "https://<public-webapp-url>"
       HOSTNAME: "0.0.0.0"
       ACTION_SERVER_TOKEN: "<shared-action-token>"
+      LONG_TASK_CALLBACK_TOKEN: "<shared-callback-token>"
       MESSAGE_FEEDBACK_ENABLED: "true"
       FEEDBACK_ADMIN_ENABLED: "true"
       FEEDBACK_DATABASE_URL: "postgresql://postgres:postgres@feedback-db:5432/cva_feedback"
@@ -244,7 +247,8 @@ docker compose up -d
 - `docker compose ps`
 - `docker compose logs -f cva-webapp`
 - Confirm `RASA_URL_LIST` targets are reachable
-- Confirm `ACTION_SERVER_TOKEN` matches Webapp + Action
+- Confirm `ACTION_SERVER_TOKEN` matches Webapp + Action for proxy requests
+- Confirm `LONG_TASK_CALLBACK_TOKEN` matches Webapp + Action for callback requests
 - Confirm `NEXTAUTH_URL` matches the public URL
 
 ---

@@ -12,7 +12,7 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const ACTION_SERVER_TOKEN = process.env.ACTION_SERVER_TOKEN;
+const LONG_TASK_CALLBACK_TOKEN = process.env.LONG_TASK_CALLBACK_TOKEN;
 
 type CallbackMessage = {
   text?: unknown;
@@ -94,16 +94,16 @@ function toTrackerEvents(messages: CallbackMessage[], traceId: string | null): A
 export async function POST(req: NextRequest) {
   const requestTraceId = readTraceId(req.headers);
 
-  if (!ACTION_SERVER_TOKEN) {
+  if (!LONG_TASK_CALLBACK_TOKEN) {
     console.error(
-      "[long-task-callback] Missing ACTION_SERVER_TOKEN environment variable",
+      "[long-task-callback] Missing LONG_TASK_CALLBACK_TOKEN environment variable",
       createTraceLogContext(requestTraceId)
     );
     return createTraceErrorResponse("Server misconfiguration", 500, requestTraceId);
   }
 
-  const token = req.headers.get("x-action-server-token");
-  if (token !== ACTION_SERVER_TOKEN) {
+  const token = req.headers.get("x-long-task-callback-token");
+  if (token !== LONG_TASK_CALLBACK_TOKEN) {
     console.warn("[long-task-callback] Unauthorized request: invalid token", createTraceLogContext(requestTraceId));
     return createTraceErrorResponse("Unauthorized", 401, requestTraceId);
   }
