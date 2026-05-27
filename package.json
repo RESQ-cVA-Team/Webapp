@@ -18,7 +18,7 @@
     "i18next": "^25.4.2",
     "jose": "^6.0.11",
     "lucide-react": "^0.511.0",
-    "next": "15.3.2",
+    "next": "15.5.18",
     "next-auth": "^4.24.11",
     "next-i18next": "^15.4.2",
     "next-themes": "^0.4.6",
@@ -41,13 +41,18 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "15.3.2",
+    "eslint-config-next": "15.5.18",
     "tailwindcss": "^4",
     "tw-animate-css": "^1.3.0",
     "typescript": "^5"
   },
-  "overrides": {
-    "react-is": "19.1.0"
+  "pnpm": {
+    "overrides": {
+      "i18next-fs-backend": "2.6.4",
+      "lodash": "4.18.0",
+      "preact": "10.26.10",
+      "react-is": "19.1.0"
+    }
   },
   "packageManager": "pnpm@10.10.0+sha512.d615db246fe70f25dcfea6d8d73dee782ce23e2245e3c4f6f888249fb568149318637dca73c2c5c8ef2a4ca0d5657fb9567188bfab47f566d1ee6ce987815c39"
 }

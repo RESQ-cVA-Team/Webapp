@@ -171,6 +171,24 @@ function createIncomingPayloadKey(payload: {
   return stableSerialize(normalized);
 }
 
+function getCustomProgressText(custom: unknown): string | null {
+  if (!custom || typeof custom !== "object") {
+    return null;
+  }
+
+  const progress = (custom as { progress?: unknown }).progress;
+  return typeof progress === "string" ? progress : null;
+}
+
+function isMessageButton(value: unknown): value is { title: string; payload: string } {
+  return (
+    !!value &&
+    typeof value === "object" &&
+    typeof (value as { title?: unknown }).title === "string" &&
+    typeof (value as { payload?: unknown }).payload === "string"
+  );
+}
+
 function formatPlanDebugMessage(plan: VisualizationPlanMessageDTO, traceId: string | null): string {
   const normalizedPlan: VisualizationPlanMessageDTO = {
     ...plan,
@@ -179,7 +197,7 @@ function formatPlanDebugMessage(plan: VisualizationPlanMessageDTO, traceId: stri
 
   let payload = "";
   try {
-    payload = JSON.stringify(plan, null, 2);
+    payload = JSON.stringify(normalizedPlan, null, 2);
   } catch {
     payload = "{\n  \"error\": \"Failed to serialize visualization plan payload\"\n}";
   }
@@ -382,11 +400,7 @@ export default function ChatWindow() {
   const progressText =
     typeof obj.progress === "string"
       ? obj.progress
-      : (obj.custom &&
-         typeof obj.custom === "object" &&
-         typeof (obj.custom as any).progress === "string"
-        ? (obj.custom as any).progress
-        : null);
+      : getCustomProgressText(obj.custom);
 
   if (progressText) {
     setMessages((prev) => {
@@ -416,14 +430,8 @@ export default function ChatWindow() {
 
     if (Array.isArray(obj.buttons)) {
       const buttons = obj.buttons
-        .filter(
-          (btn: any) =>
-            btn &&
-            typeof btn === "object" &&
-            typeof btn.title === "string" &&
-            typeof btn.payload === "string"
-        )
-        .map((btn: any) => ({
+        .filter(isMessageButton)
+        .map((btn) => ({
           title: btn.title,
           payload: btn.payload,
         }));
