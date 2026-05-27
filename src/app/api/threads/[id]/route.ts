@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
 import { cookies, headers } from "next/headers";
-import { getRasaUrlForRequest } from "@/lib/rasaConfig";
+import { getRasaUrlForRequest, withRasaAuth } from "@/lib/rasaConfig";
 import { buildRasaSenderId } from "@/lib/rasaSender";
 import { deleteThreadForUser, getThreadForUser, renameThreadForUser } from "@/lib/threadRegistryStore";
 
@@ -79,7 +79,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   if (apiUrl) {
     const senderId = buildRasaSenderId(userId, threadId);
     try {
-      const response = await fetch(`${apiUrl}/conversations/${senderId}/tracker/events`, {
+      const response = await fetch(withRasaAuth(`${apiUrl}/conversations/${senderId}/tracker/events`), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

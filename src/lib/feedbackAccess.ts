@@ -98,7 +98,12 @@ export function getAccessTokenName(accessToken: string | null | undefined): stri
 }
 
 function getReporterSalt(): string {
-  return process.env.FEEDBACK_REPORTER_SALT?.trim() || process.env.NEXTAUTH_SECRET?.trim() || "feedback";
+  const reporterSalt = process.env.FEEDBACK_REPORTER_SALT?.trim();
+  if (reporterSalt) {
+    return reporterSalt;
+  }
+
+  throw new Error("Missing FEEDBACK_REPORTER_SALT environment variable");
 }
 
 export function createFeedbackReporterKey(userId: string | null | undefined): string | null {
