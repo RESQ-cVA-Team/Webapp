@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { publishToSender } from "@/lib/sseBus";
-import { getRasaBots } from "@/lib/rasaConfig";
+import { getRasaBots, withRasaAuth } from "@/lib/rasaConfig";
 import {
   createTraceErrorResponse,
   createTraceLogContext,
@@ -163,7 +163,7 @@ export async function POST(req: NextRequest) {
   }));
   if (trackerEvents.length > 0) {
     const trackerResponse = await fetch(
-      `${rasaUrl}/conversations/${senderId}/tracker/events`,
+      withRasaAuth(`${rasaUrl}/conversations/${senderId}/tracker/events`),
       {
         method: "POST",
         headers: {

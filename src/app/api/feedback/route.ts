@@ -40,8 +40,19 @@ export async function POST(req: NextRequest) {
   }
 
   const identity = getFeedbackIdentityFromToken(token);
-  const reporterKey = createFeedbackReporterKey(identity.userId);
-  if (!identity.userId || !reporterKey) {
+  if (!identity.userId) {
+    return new NextResponse("Unauthorized", { status: 401 });
+  }
+
+  let reporterKey: string | null;
+  try {
+    reporterKey = createFeedbackReporterKey(identity.userId);
+  } catch (error) {
+    console.error("Feedback reporter key configuration error", error);
+    return NextResponse.json({ message: "Server misconfiguration" }, { status: 500 });
+  }
+
+  if (!reporterKey) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
 

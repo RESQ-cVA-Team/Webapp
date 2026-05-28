@@ -51,6 +51,7 @@ Create/update:
 ```env
 CALLBACK_BASE_URL="http://<local-webapp-host>:3000"
 RASA_URL_LIST="en=http://<local-rasa-host>:5005"
+RASA_AUTH_TOKEN="<shared-rasa-token>"
 
 KEYCLOAK_CLIENT_ID="<keycloak-client-id>"
 KEYCLOAK_CLIENT_SECRET="<keycloak-client-secret>"
@@ -93,6 +94,9 @@ SSOT_VERSION_URL="http://<local-ssot-host>:7001/version"
 ```
 
 `RASA_URL_LIST` supports separators `;`, `,`, or newline, for example `en=http://<rasa-en-host>:5005;el=http://<rasa-el-host>:5006`.
+If `MESSAGE_FEEDBACK_ENABLED="true"`, `FEEDBACK_REPORTER_SALT` is required.
+The Webapp now fails closed for feedback key generation instead of falling back
+to a built-in default salt.
 
 ### Feedback storage
 
@@ -165,6 +169,7 @@ Run from VS Code: **Terminal → Run Task**.
 ### Required Webapp environment variables
 
 - `RASA_URL_LIST`
+- `RASA_AUTH_TOKEN`
 - `CALLBACK_BASE_URL`
 - `CVA_BASE_URL`
 - `RASA_PROXY_TARGETS`
@@ -184,7 +189,7 @@ Optional feedback/admin variables:
 - `FEEDBACK_COMMENT_MAX_LENGTH`
 - `FEEDBACK_ADMIN_EMAILS`
 - `FEEDBACK_ADMIN_ROLES`
-- `FEEDBACK_REPORTER_SALT`
+- `FEEDBACK_REPORTER_SALT` (required when `MESSAGE_FEEDBACK_ENABLED=true`)
 - `FEEDBACK_DATABASE_URL`
 - `FEEDBACK_DB_HOST`
 - `FEEDBACK_DB_PORT`
@@ -217,6 +222,7 @@ services:
         en=http://<rasa-en-service>:5005
         cs=http://<rasa-cs-service>:5005
         el=http://<rasa-el-service>:5005
+      RASA_AUTH_TOKEN: "<shared-rasa-token>"
       CALLBACK_BASE_URL: "http://<webapp-service>:3000"
       CVA_BASE_URL: "https://<cva-api-host>/api/rest/cva/v1"
       RASA_PROXY_TARGETS: '{"graphql":"https://<graphql-host>","analytics":"https://<analytics-host>"}'
@@ -230,6 +236,7 @@ services:
       LONG_TASK_CALLBACK_TOKEN: "<shared-callback-token>"
       MESSAGE_FEEDBACK_ENABLED: "true"
       FEEDBACK_ADMIN_ENABLED: "true"
+      FEEDBACK_REPORTER_SALT: "<random-long-secret>"
       FEEDBACK_DATABASE_URL: "postgresql://postgres:postgres@feedback-db:5432/cva_feedback"
 ```
 
@@ -250,6 +257,7 @@ docker compose up -d
 - Confirm `ACTION_SERVER_TOKEN` matches Webapp + Action for proxy requests
 - Confirm `LONG_TASK_CALLBACK_TOKEN` matches Webapp + Action for callback requests
 - Confirm `NEXTAUTH_URL` matches the public URL
+- Confirm `FEEDBACK_REPORTER_SALT` is set whenever feedback is enabled
 
 ---
 

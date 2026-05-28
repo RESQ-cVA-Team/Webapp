@@ -1,6 +1,6 @@
 import { getToken } from "next-auth/jwt";
 import { NextRequest, NextResponse } from "next/server";
-import { getRasaUrlForRequest } from "@/lib/rasaConfig";
+import { getRasaUrlForRequest, withRasaAuth } from "@/lib/rasaConfig";
 import { putUserAccessToken } from "@/lib/userTokenVault";
 import { buildRasaSenderId } from "@/lib/rasaSender";
 import { publishToSender } from "@/lib/sseBus";
@@ -121,7 +121,7 @@ export async function POST(req: NextRequest) {
 
     let rasaStreamRes: Response;
     try {
-      rasaStreamRes = await fetch(`${apiUrl}/webhooks/rest/webhook?stream=true`, {
+      rasaStreamRes = await fetch(withRasaAuth(`${apiUrl}/webhooks/rest/webhook?stream=true`), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

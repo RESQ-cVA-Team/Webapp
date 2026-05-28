@@ -1,3 +1,5 @@
+import { withRasaAuth } from "@/lib/rasaConfig";
+
 type ServiceName = "webapp" | "rasa" | "action" | "ssot";
 
 export type CollectedServiceSnapshot = {
@@ -127,7 +129,8 @@ export async function collectFeedbackServiceSnapshots(): Promise<CollectedServic
       continue;
     }
 
-    const payload = await fetchVersionPayload(versionUrl);
+    const resolvedVersionUrl = config.service === "rasa" ? withRasaAuth(versionUrl) : versionUrl;
+    const payload = await fetchVersionPayload(resolvedVersionUrl);
     snapshots.push(mergeMetadata(envSnapshot, payload));
   }
 
