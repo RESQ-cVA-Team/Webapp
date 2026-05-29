@@ -35,11 +35,20 @@ jobs:
         run: |
           set -euo pipefail
           SHORT_SHA="${GITHUB_SHA::7}"
+          BUILD_DATE="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          WEBAPP_VERSION="$(node -p "require('./package.json').version")"
           TAG_ARGS=()
+          BUILD_ARGS=(
+            --build-arg WEBAPP_VERSION=$WEBAPP_VERSION
+            --build-arg WEBAPP_COMMIT_SHA=$GITHUB_SHA
+            --build-arg WEBAPP_BUILD_DATE=$BUILD_DATE
+          )
           
           if [ "${{ github.ref_name }}" = "master" ]; then
+            BUILD_ARGS+=(--build-arg WEBAPP_IMAGE_TAG=latest)
             TAG_ARGS=(-t ghcr.io/$REPO_NAME_LC:latest -t ghcr.io/$REPO_NAME_LC:master-$SHORT_SHA)
           elif [ "${{ github.ref_name }}" = "dev" ]; then
+            BUILD_ARGS+=(--build-arg WEBAPP_IMAGE_TAG=dev)
             TAG_ARGS=(-t ghcr.io/$REPO_NAME_LC:dev -t ghcr.io/$REPO_NAME_LC:dev-$SHORT_SHA)
           else
             echo "Unsupported branch for docker publish: ${{ github.ref_name }}" >&2
@@ -52,5 +61,6 @@ jobs:
             --provenance=mode=max \
             --sbom=true \
             --push \
+            "${BUILD_ARGS[@]}" \
             "${TAG_ARGS[@]}" \
             .
