@@ -36,7 +36,7 @@ jobs:
           set -euo pipefail
           SHORT_SHA="${GITHUB_SHA::7}"
           BUILD_DATE="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-          WEBAPP_VERSION="$(node -p "require('./package.json').version")"
+          WEBAPP_VERSION="$(tr -d '[:space:]' < VERSION)"
           TAG_ARGS=()
           BUILD_ARGS=(
             --build-arg WEBAPP_VERSION=$WEBAPP_VERSION
