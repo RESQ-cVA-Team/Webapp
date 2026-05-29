@@ -1,8 +1,8 @@
-import { getToken } from "next-auth/jwt";
 import { NextRequest, NextResponse } from "next/server";
 import { headers as nextHeaders } from "next/headers";
 import { getThreadForUser } from "@/lib/threadRegistryStore";
-import { createFeedbackReporterKey, getFeedbackIdentityFromToken, getFeedbackReporterAliases } from "@/lib/feedbackAccess";
+import { auth } from "@/auth";
+import { createFeedbackReporterKey, getFeedbackIdentityFromSession, getFeedbackReporterAliases } from "@/lib/feedbackAccess";
 import {
   getFeedbackCommentMaxLength,
   getFeedbackDisclosureText,
@@ -34,12 +34,12 @@ export async function POST(req: NextRequest) {
     return new NextResponse("Not found", { status: 404 });
   }
 
-  const token = await getToken({ req });
-  if (!token) {
+  const session = await auth();
+  if (!session) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
 
-  const identity = getFeedbackIdentityFromToken(token);
+  const identity = getFeedbackIdentityFromSession(session);
   if (!identity.userId) {
     return new NextResponse("Unauthorized", { status: 401 });
   }

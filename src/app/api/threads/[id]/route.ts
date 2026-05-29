@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getToken } from "next-auth/jwt";
 import { cookies, headers } from "next/headers";
+import { auth } from "@/auth";
 import { getRasaUrlForRequest, withRasaAuth } from "@/lib/rasaConfig";
 import { buildRasaSenderId } from "@/lib/rasaSender";
 import { deleteThreadForUser, getThreadForUser, renameThreadForUser } from "@/lib/threadRegistryStore";
@@ -19,8 +19,8 @@ function parseThreadId(raw: string): number | null {
 }
 
 export async function PATCH(req: NextRequest, { params }: Params) {
-  const token = await getToken({ req });
-  const userId = token?.sub ? String(token.sub) : null;
+  const session = await auth();
+  const userId = session?.user?.id ? String(session.user.id) : null;
   if (!userId) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
@@ -50,8 +50,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 }
 
 export async function DELETE(req: NextRequest, { params }: Params) {
-  const token = await getToken({ req });
-  const userId = token?.sub ? String(token.sub) : null;
+  const session = await auth();
+  const userId = session?.user?.id ? String(session.user.id) : null;
   if (!userId) {
     return new NextResponse("Unauthorized", { status: 401 });
   }

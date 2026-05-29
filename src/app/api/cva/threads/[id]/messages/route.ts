@@ -1,5 +1,5 @@
-import { getToken } from "next-auth/jwt";
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@/auth";
 import { getCvaBaseUrl } from "@/lib/cvaConfig";
 
 export const runtime = "nodejs";
@@ -25,9 +25,9 @@ async function forwardResponse(res: Response) {
 }
 
 export async function GET(req: NextRequest, { params }: Params) {
-  const token = await getToken({ req });
+  const session = await auth();
 
-  if (!token?.accessToken) {
+  if (!session?.accessToken) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
 
@@ -39,7 +39,7 @@ try {
   const res = await fetch(upstreamUrl, {
     method: "GET",
     headers: {
-      Authorization: `Bearer ${String(token.accessToken)}`,
+      Authorization: `Bearer ${String(session.accessToken)}`,
     },
     cache: "no-store",
   });
@@ -62,9 +62,9 @@ try {
 
 
 export async function POST(req: NextRequest, { params }: Params) {
-  const token = await getToken({ req });
+  const session = await auth();
 
-  if (!token?.accessToken) {
+  if (!session?.accessToken) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
 
@@ -83,7 +83,7 @@ try {
   const res = await fetch(`${baseUrl}/threads/${encodeURIComponent(id)}/messages`, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${String(token.accessToken)}`,
+      Authorization: `Bearer ${String(session.accessToken)}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify(payload),
