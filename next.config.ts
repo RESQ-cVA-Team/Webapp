@@ -1,13 +1,16 @@
 
 import type { NextConfig } from "next";
 
-const contentSecurityPolicyReportOnly = [
+const keycloakIssuer = process.env.KEYCLOAK_ISSUER?.replace(/\/+$/, "") ?? "";
+const keycloakOrigin = keycloakIssuer ? new URL(keycloakIssuer).origin : "";
+
+const contentSecurityPolicy = [
   "default-src 'self'",
   "base-uri 'self'",
   "font-src 'self' data:",
-  "form-action 'self'",
+  `form-action 'self'${keycloakOrigin ? ` ${keycloakOrigin}` : ""}`,
   "frame-ancestors 'none'",
-  "img-src 'self' data: blob:",
+  "img-src 'self' data: blob: https://authjs.dev",
   "object-src 'none'",
   "script-src 'self' 'unsafe-inline'",
   "style-src 'self' 'unsafe-inline'",
@@ -16,7 +19,7 @@ const contentSecurityPolicyReportOnly = [
 ].join("; ");
 
 const securityHeaders = [
-  { key: "Content-Security-Policy-Report-Only", value: contentSecurityPolicyReportOnly },
+  { key: "Content-Security-Policy", value: contentSecurityPolicy },
   { key: "Permissions-Policy", value: "camera=(), geolocation=(), microphone=()" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   { key: "X-Content-Type-Options", value: "nosniff" },
