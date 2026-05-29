@@ -15,4 +15,7 @@ export const authBaseConfig = {
     strategy: "jwt",
   },
   secret: process.env.NEXTAUTH_SECRET,
+  pages: {
+    signIn: "/signin",
+  },
 } satisfies NextAuthConfig;

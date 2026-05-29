@@ -1,22 +1,24 @@
 
 import type { NextConfig } from "next";
 
-const contentSecurityPolicyReportOnly = [
+const isDevelopment = process.env.NODE_ENV === "development";
+
+const contentSecurityPolicy = [
   "default-src 'self'",
   "base-uri 'self'",
-  "font-src 'self' data:",
+  "font-src 'self'",
   "form-action 'self'",
   "frame-ancestors 'none'",
-  "img-src 'self' data: blob:",
+  "img-src 'self'",
   "object-src 'none'",
   "script-src 'self' 'unsafe-inline'",
   "style-src 'self' 'unsafe-inline'",
-  "connect-src 'self' https: http: ws: wss:",
+  isDevelopment ? "connect-src 'self' ws: wss:" : "connect-src 'self'",
   "upgrade-insecure-requests",
 ].join("; ");
 
 const securityHeaders = [
-  { key: "Content-Security-Policy-Report-Only", value: contentSecurityPolicyReportOnly },
+  { key: "Content-Security-Policy", value: contentSecurityPolicy },
   { key: "Permissions-Policy", value: "camera=(), geolocation=(), microphone=()" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   { key: "X-Content-Type-Options", value: "nosniff" },

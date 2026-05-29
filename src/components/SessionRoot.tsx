@@ -1,5 +1,6 @@
 "use client";
 import { SessionProvider, useSession, signIn } from "next-auth/react";
+import { usePathname } from "next/navigation";
 import React, { useEffect } from "react";
 import { toast } from "sonner";
 
@@ -7,13 +8,18 @@ const SHOW_DEV_AUTH_TOASTS = process.env.NODE_ENV === "development";
 
 function SessionWatcher() {
   const { data: session, status } = useSession();
+  const pathname = usePathname();
   const lastRefreshRef = React.useRef<number | null>(null);
 
   useEffect(() => {
+    if (pathname === "/signin") {
+      return;
+    }
+
     if (status === "unauthenticated" || session?.error === "RefreshAccessTokenError") {
       signIn("keycloak", { callbackUrl: window.location.href });
     }
-  }, [session?.error, status]);
+  }, [pathname, session?.error, status]);
 
   useEffect(() => {
     if (!SHOW_DEV_AUTH_TOASTS) return;
