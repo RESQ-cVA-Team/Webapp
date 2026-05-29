@@ -11,7 +11,7 @@ const contentSecurityPolicy = [
   "object-src 'none'",
   "script-src 'self' 'unsafe-inline'",
   "style-src 'self' 'unsafe-inline'",
-  "connect-src 'self' https: http: ws: wss:",
+  "connect-src 'self' ws: wss:",
   "upgrade-insecure-requests",
 ].join("; ");
 
