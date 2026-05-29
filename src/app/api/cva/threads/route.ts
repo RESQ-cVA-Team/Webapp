@@ -1,5 +1,5 @@
-import { getToken } from "next-auth/jwt";
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@/auth";
 import { getCvaBaseUrl } from "@/lib/cvaConfig";
 
 export const runtime = "nodejs";
@@ -36,9 +36,9 @@ async function forwardResponse(res: Response) {
 }
 
 export async function GET(req: NextRequest) {
-  const token = await getToken({ req });
+  const session = await auth();
 
-  if (!token?.accessToken) {
+  if (!session?.accessToken) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
 
@@ -49,7 +49,7 @@ export async function GET(req: NextRequest) {
     const res = await fetch(upstreamUrl, {
       method: "GET",
       headers: {
-        Authorization: `Bearer ${String(token.accessToken)}`,
+        Authorization: `Bearer ${String(session.accessToken)}`,
       },
       cache: "no-store",
     });
@@ -71,15 +71,15 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const token = await getToken({ req });
+  const session = await auth();
 
-  if (!token?.accessToken) {
+  if (!session?.accessToken) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
 
   const body = await req.json();
-  const subjectFromAccessToken = getSubjectFromAccessToken(String(token.accessToken));
-  const subject = subjectFromAccessToken ?? (typeof token.sub === "string" ? token.sub : null);
+  const subjectFromAccessToken = getSubjectFromAccessToken(String(session.accessToken));
+  const subject = subjectFromAccessToken ?? session.user?.id ?? null;
 
   const payload =
     body && typeof body === "object"
@@ -103,7 +103,7 @@ export async function POST(req: NextRequest) {
     const res = await fetch(`${baseUrl}/threads`, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${String(token.accessToken)}`,
+        Authorization: `Bearer ${String(session.accessToken)}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify(payload),

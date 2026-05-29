@@ -1,6 +1,5 @@
 import { createHash } from "crypto";
 import type { Session } from "next-auth";
-import type { JWT } from "next-auth/jwt";
 import { getFeedbackAdminEmails, getFeedbackAdminRoles } from "@/lib/feedbackConfig";
 
 function decodeJwtPayload(rawToken: string | null | undefined): Record<string, unknown> | null {
@@ -145,21 +144,6 @@ export function isFeedbackAdmin(params: {
 
   const tokenRoles = getAccessTokenRoles(params.accessToken);
   return tokenRoles.some((role) => adminRoles.includes(role));
-}
-
-export function getFeedbackIdentityFromToken(token: JWT) {
-  const fallbackEmail = getAccessTokenEmail(typeof token.accessToken === "string" ? token.accessToken : null);
-  const fallbackName = getAccessTokenName(typeof token.accessToken === "string" ? token.accessToken : null);
-
-  return {
-    userId: typeof token.sub === "string" ? token.sub : null,
-    userEmail: typeof token.email === "string" ? token.email : fallbackEmail,
-    userName: typeof token.name === "string" ? token.name : fallbackName,
-    isAdmin: isFeedbackAdmin({
-      email: typeof token.email === "string" ? token.email : fallbackEmail,
-      accessToken: typeof token.accessToken === "string" ? token.accessToken : null,
-    }),
-  };
 }
 
 export function getFeedbackIdentityFromSession(session: Session | null | undefined) {

@@ -1,5 +1,6 @@
-import KeycloakProvider from "next-auth/providers/keycloak";
-import type { AuthOptions, DefaultSession } from "next-auth";
+import type { DefaultSession, NextAuthConfig } from "next-auth";
+import type {} from "next-auth/jwt";
+import { authBaseConfig, keycloakIssuer } from "@/auth.config";
 import { isFeedbackAdmin } from "@/lib/feedbackAccess";
 
 const parsedRefreshSafetyMs = Number(process.env.NEXTAUTH_ACCESS_TOKEN_REFRESH_SAFETY_MS ?? "90000");
@@ -33,18 +34,8 @@ declare module "next-auth/jwt" {
   }
 }
 
-export const authOptions: AuthOptions = {
-  providers: [
-    KeycloakProvider({
-      clientId: process.env.KEYCLOAK_CLIENT_ID!,
-      clientSecret: process.env.KEYCLOAK_CLIENT_SECRET!,
-      issuer: process.env.KEYCLOAK_ISSUER!,
-    }),
-  ],
-  session: {
-    strategy: "jwt",
-  },
-  secret: process.env.NEXTAUTH_SECRET,
+export const authConfig = {
+  ...authBaseConfig,
   callbacks: {
     async jwt({ token, account }) {
       if (account) {
@@ -80,7 +71,7 @@ export const authOptions: AuthOptions = {
       ) {
         if (token.refreshToken) {
           try {
-            const url = `${process.env.KEYCLOAK_ISSUER}/protocol/openid-connect/token`;
+            const url = `${keycloakIssuer}/protocol/openid-connect/token`;
             const params = new URLSearchParams({
               client_id: process.env.KEYCLOAK_CLIENT_ID!,
               client_secret: process.env.KEYCLOAK_CLIENT_SECRET!,
@@ -122,6 +113,7 @@ export const authOptions: AuthOptions = {
       return token;
     },
     async session({ session, token }) {
+      const sessionUserId = typeof token.sub === "string" ? token.sub : session.user?.id;
       session.accessToken = typeof token.accessToken === "string" ? token.accessToken : undefined;
       session.refreshToken = typeof token.refreshToken === "string" ? token.refreshToken : undefined;
       session.accessTokenExpires = typeof token.accessTokenExpires === "number" ? token.accessTokenExpires : undefined;
@@ -130,7 +122,7 @@ export const authOptions: AuthOptions = {
       session.isFeedbackAdmin = token.isFeedbackAdmin === true;
       session.user = {
         ...session.user,
-        id: typeof token.sub === "string" ? token.sub : undefined,
+        ...(sessionUserId ? { id: sessionUserId } : {}),
         email: typeof token.email === "string" ? token.email : session.user?.email ?? undefined,
         name: typeof token.name === "string" ? token.name : session.user?.name ?? undefined,
       };
@@ -138,4 +130,4 @@ export const authOptions: AuthOptions = {
       return session;
     },
   },
-};
+} satisfies NextAuthConfig;
