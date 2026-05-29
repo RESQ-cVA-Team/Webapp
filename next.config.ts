@@ -1,17 +1,19 @@
 
 import type { NextConfig } from "next";
 
+const isDevelopment = process.env.NODE_ENV === "development";
+
 const contentSecurityPolicy = [
   "default-src 'self'",
   "base-uri 'self'",
-  "font-src 'self' data:",
+  "font-src 'self'",
   "form-action 'self'",
   "frame-ancestors 'none'",
-  "img-src 'self' data:",
+  "img-src 'self'",
   "object-src 'none'",
   "script-src 'self' 'unsafe-inline'",
   "style-src 'self' 'unsafe-inline'",
-  "connect-src 'self' ws: wss:",
+  isDevelopment ? "connect-src 'self' ws: wss:" : "connect-src 'self'",
   "upgrade-insecure-requests",
 ].join("; ");
 
