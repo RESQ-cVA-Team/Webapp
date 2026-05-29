@@ -30,11 +30,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <title>{titleText}</title>
         <meta charSet="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `(() => { try { var m = document.cookie.match(/(?:^|; )dark=([^;]+)/); var d = m ? decodeURIComponent(m[1]) === 'true' : false; var t = (document.cookie.match(/(?:^|; )theme=([^;]+)/) || [])[1]; if (d) document.documentElement.classList.add('dark'); else document.documentElement.classList.remove('dark'); if (t && decodeURIComponent(t) !== 'default') document.documentElement.setAttribute('data-theme', decodeURIComponent(t)); } catch (e) {} })();`,
-          }}
-        />
       </head>
       <body className="h-screen flex flex-col overflow-hidden">
         <SessionRoot>
