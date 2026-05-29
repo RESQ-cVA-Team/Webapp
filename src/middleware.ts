@@ -36,7 +36,7 @@ export default function middleware(req: NextRequest) {
   const hasSessionCookie = SESSION_COOKIE_NAMES.some((name) => req.cookies.has(name));
 
   if (!hasSessionCookie) {
-    const signInUrl = new URL("/api/auth/signin", req.nextUrl.origin);
+    const signInUrl = new URL("/signin", req.nextUrl.origin);
     signInUrl.searchParams.set("callbackUrl", `${req.nextUrl.pathname}${req.nextUrl.search}`);
     return ensureLanguageCookie(req, NextResponse.redirect(signInUrl));
   }

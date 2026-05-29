@@ -1,16 +1,13 @@
 
 import type { NextConfig } from "next";
 
-const keycloakIssuer = process.env.KEYCLOAK_ISSUER?.replace(/\/+$/, "") ?? "";
-const keycloakOrigin = keycloakIssuer ? new URL(keycloakIssuer).origin : "";
-
 const contentSecurityPolicy = [
   "default-src 'self'",
   "base-uri 'self'",
   "font-src 'self' data:",
-  `form-action 'self'${keycloakOrigin ? ` ${keycloakOrigin}` : ""}`,
+  "form-action 'self'",
   "frame-ancestors 'none'",
-  "img-src 'self' data: blob: https://authjs.dev",
+  "img-src 'self' data: blob:",
   "object-src 'none'",
   "script-src 'self' 'unsafe-inline'",
   "style-src 'self' 'unsafe-inline'",
