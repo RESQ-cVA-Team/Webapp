@@ -1,5 +1,5 @@
-import { getToken } from "next-auth/jwt";
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@/auth";
 import { getCvaBaseUrl } from "@/lib/cvaConfig";
 
 export const runtime = "nodejs";
@@ -14,7 +14,8 @@ function getSubjectFromAccessToken(rawToken: string): string | null {
       sub?: unknown;
     };
     return typeof payload.sub === "string" ? payload.sub : null;
-  } catch {
+  } catch(error) {
+    console.error("Failed to parse access token payload", error);
     return null;
   }
 }
@@ -35,37 +36,50 @@ async function forwardResponse(res: Response) {
 }
 
 export async function GET(req: NextRequest) {
-  const token = await getToken({ req });
+  const session = await auth();
 
-  if (!token?.accessToken) {
+  if (!session?.accessToken) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
 
   const baseUrl = getCvaBaseUrl();
   const query = req.nextUrl.searchParams.toString();
   const upstreamUrl = `${baseUrl}/threads${query ? `?${query}` : ""}`;
-
-  const res = await fetch(upstreamUrl, {
-    method: "GET",
-    headers: {
-      Authorization: `Bearer ${String(token.accessToken)}`,
-    },
-    cache: "no-store",
-  });
-
-  return forwardResponse(res);
+  try {
+    const res = await fetch(upstreamUrl, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${String(session.accessToken)}`,
+      },
+      cache: "no-store",
+    });
+    if (!res.ok) {
+      console.error(`Failed to fetch CVA threads: ${res.status} ${res.statusText}`, {
+        upstreamUrl,
+        status: res.status,
+        statusText: res.statusText,
+      });
+    }
+    return await forwardResponse(res);
+  } catch (error) {
+    console.error("Error fetching CVA threads", {
+      upstreamUrl,
+      error,
+    });
+    return new NextResponse("Internal Server Error", { status: 500 });
+  }
 }
 
 export async function POST(req: NextRequest) {
-  const token = await getToken({ req });
+  const session = await auth();
 
-  if (!token?.accessToken) {
+  if (!session?.accessToken) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
 
   const body = await req.json();
-  const subjectFromAccessToken = getSubjectFromAccessToken(String(token.accessToken));
-  const subject = subjectFromAccessToken ?? (typeof token.sub === "string" ? token.sub : null);
+  const subjectFromAccessToken = getSubjectFromAccessToken(String(session.accessToken));
+  const subject = subjectFromAccessToken ?? session.user?.id ?? null;
 
   const payload =
     body && typeof body === "object"
@@ -85,15 +99,30 @@ export async function POST(req: NextRequest) {
   }
 
   const baseUrl = getCvaBaseUrl();
-
-  const res = await fetch(`${baseUrl}/threads`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${String(token.accessToken)}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
-
-  return forwardResponse(res);
+  try {
+    const res = await fetch(`${baseUrl}/threads`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${String(session.accessToken)}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      console.error(`Failed to create CVA thread: ${res.status} ${res.statusText}`, {
+        baseUrl,
+        payload,
+        status: res.status,
+        statusText: res.statusText,
+      });
+    }
+    return await forwardResponse(res);
+  } catch (error) {
+    console.error("Error creating CVA thread", {
+      baseUrl,
+      payload,
+      error,
+    });
+    return new NextResponse("Internal Server Error", { status: 500 });
+  }
 }

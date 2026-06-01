@@ -171,6 +171,24 @@ function createIncomingPayloadKey(payload: {
   return stableSerialize(normalized);
 }
 
+function getCustomProgressText(custom: unknown): string | null {
+  if (!custom || typeof custom !== "object") {
+    return null;
+  }
+
+  const progress = (custom as { progress?: unknown }).progress;
+  return typeof progress === "string" ? progress : null;
+}
+
+function isMessageButton(value: unknown): value is { title: string; payload: string } {
+  return (
+    !!value &&
+    typeof value === "object" &&
+    typeof (value as { title?: unknown }).title === "string" &&
+    typeof (value as { payload?: unknown }).payload === "string"
+  );
+}
+
 function formatPlanDebugMessage(plan: VisualizationPlanMessageDTO, traceId: string | null): string {
   const normalizedPlan: VisualizationPlanMessageDTO = {
     ...plan,
@@ -179,7 +197,7 @@ function formatPlanDebugMessage(plan: VisualizationPlanMessageDTO, traceId: stri
 
   let payload = "";
   try {
-    payload = JSON.stringify(plan, null, 2);
+    payload = JSON.stringify(normalizedPlan, null, 2);
   } catch {
     payload = "{\n  \"error\": \"Failed to serialize visualization plan payload\"\n}";
   }
@@ -313,7 +331,7 @@ export default function ChatWindow() {
   }, []);
 
   const applyVisualizationFromCustom = useCallback((custom: unknown, options?: { emitPlanMessage?: boolean }) => {
-    const { setVisualization, addToHistory, setSelectedChartIndex, rememberVisualizationPlan } = useChatStore.getState();
+     const { setVisualization, addToHistory, setSelectedChartIndex, setSelectedStatisticsIndex, rememberVisualizationPlan } = useChatStore.getState();
 
     if (isVisualizationPlanMessageDTO(custom)) {
       const traceId = resolveVisualizationTraceId(custom);
@@ -329,6 +347,7 @@ export default function ChatWindow() {
     if (isVisualizationResponseDTO(custom)) {
       setVisualization(custom);
       addToHistory(custom);
+      setSelectedStatisticsIndex(null);
       setSelectedChartIndex(0);
     }
   }, [emitPlanDebugMessage]);
@@ -348,6 +367,17 @@ export default function ChatWindow() {
   if (!obj || typeof obj !== "object") return;
 
   if (obj.type === "connected") return;
+
+  if (obj.type === "lock") {
+    setIsWaitingForBot(true);
+    return;
+  }
+
+  if (obj.type === "release") {
+    setMessages((prev) => prev.filter((message) => message.kind !== "progress"));
+    setIsWaitingForBot(false);
+    return;
+  }
 
   const payloadKey = createIncomingPayloadKey(obj);
   if (payloadKey) {
@@ -370,15 +400,9 @@ export default function ChatWindow() {
   const progressText =
     typeof obj.progress === "string"
       ? obj.progress
-      : (obj.custom &&
-         typeof obj.custom === "object" &&
-         typeof (obj.custom as any).progress === "string"
-        ? (obj.custom as any).progress
-        : null);
+      : getCustomProgressText(obj.custom);
 
   if (progressText) {
-    setIsWaitingForBot(true);
-
     setMessages((prev) => {
       const base = prev.filter((m) => m.kind !== "progress");
       return [
@@ -396,7 +420,6 @@ export default function ChatWindow() {
   }
 
   setMessages((prev) => prev.filter((m) => m.kind !== "progress"));
-  setIsWaitingForBot(false);
 
   if (typeof obj.text === "string" && obj.text.length > 0) {
     const botMsg: Message = {
@@ -405,18 +428,10 @@ export default function ChatWindow() {
       content: obj.text,
     };
 
-    setIsWaitingForBot(false);
-
     if (Array.isArray(obj.buttons)) {
       const buttons = obj.buttons
-        .filter(
-          (btn: any) =>
-            btn &&
-            typeof btn === "object" &&
-            typeof btn.title === "string" &&
-            typeof btn.payload === "string"
-        )
-        .map((btn: any) => ({
+        .filter(isMessageButton)
+        .map((btn) => ({
           title: btn.title,
           payload: btn.payload,
         }));
@@ -494,6 +509,7 @@ export default function ChatWindow() {
   useEffect(() => {
     if (!currentThreadId) return;
 
+    let closedByCleanup = false;
     const es = new EventSource(`/api/rasa/stream?threadId=${currentThreadId}`, { withCredentials: true });
 
     es.onmessage = (event) => {
@@ -506,10 +522,14 @@ export default function ChatWindow() {
     };
 
     es.onerror = (err) => {
-      console.error("SSE connection error:", err);
+      if (closedByCleanup || es.readyState === EventSource.CLOSED) {
+        return;
+      }
+      console.warn("SSE connection interrupted; browser will retry.", err);
     };
 
     return () => {
+      closedByCleanup = true;
       es.close();
     };
   }, [currentThreadId]);
@@ -522,8 +542,6 @@ export default function ChatWindow() {
       detail: { threadId: currentThreadId },
     })
   );
-
-  setIsWaitingForBot(true);
 
   const userMsg: Message = {
     id: crypto.randomUUID(),
@@ -553,7 +571,7 @@ export default function ChatWindow() {
   } catch (err) {
     setIsWaitingForBot(false);
 
-    console.error("/api/rasa error:", err);
+    console.error( "/api/rasa error:", err);
 
     const errorMsg: Message = {
       id: crypto.randomUUID(),

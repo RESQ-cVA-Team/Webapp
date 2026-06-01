@@ -9,19 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-
-type FeedbackIssueOption = {
-  id: string;
-  label: string;
-};
-
-type FeedbackConfigResponse = {
-  enabled: boolean;
-  captureConversationContext: boolean;
-  commentMaxLength: number;
-  disclosure: string;
-  issues: FeedbackIssueOption[];
-};
+import { getFeedbackConfigCached, type FeedbackConfigResponse } from "@/lib/feedbackConfigClient";
 
 type ExistingFeedback = {
   submitted: boolean;
@@ -67,12 +55,7 @@ export default function MessageFeedbackControls({
 
     async function loadConfig() {
       try {
-        const response = await fetch("/api/feedback/config", {
-          method: "GET",
-          cache: "no-store",
-        });
-        if (!response.ok) return;
-        const payload = (await response.json()) as FeedbackConfigResponse;
+        const payload = await getFeedbackConfigCached();
         if (!cancelled) {
           setConfig(payload);
         }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getToken } from "next-auth/jwt";
+import { auth } from "@/auth";
 import { addSubscriberForSender } from "@/lib/sseBus";
 import { putUserAccessToken } from "@/lib/userTokenVault";
 import { buildRasaSenderId } from "@/lib/rasaSender";
@@ -8,22 +8,22 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
-  const token = await getToken({ req });
+  const session = await auth();
 
-  if (!token?.accessToken || !token?.sub) {
+  if (!session?.accessToken || !session.user?.id) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
 
-  const userSub = String(token.sub);
+  const userSub = String(session.user.id);
   const threadParam = req.nextUrl.searchParams.get("threadId");
   const parsedThreadId = threadParam ? Number(threadParam) : NaN;
   const threadId = Number.isFinite(parsedThreadId) ? parsedThreadId : null;
   const senderId = buildRasaSenderId(userSub, threadId);
 
   const tokenPayload = {
-    accessToken: String(token.accessToken),
+    accessToken: String(session.accessToken),
     accessTokenExpiresAt:
-      typeof token.accessTokenExpires === "number" ? token.accessTokenExpires : undefined,
+      typeof session.accessTokenExpires === "number" ? session.accessTokenExpires : undefined,
   };
 
   putUserAccessToken({

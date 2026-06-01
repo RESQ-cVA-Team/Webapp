@@ -23,6 +23,9 @@
 !/.dockerignore
 !/Dockerfile
 
+# Add version
+!/VERSION
+
 # Add Devtools
 !/package.json
 !/pnpm-lock.yaml

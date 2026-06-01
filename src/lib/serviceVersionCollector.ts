@@ -1,3 +1,6 @@
+import { MESSAGE_FEEDBACK_VERSION_ENDPOINT } from "@/lib/feedbackConfig";
+import { getRasaBots, withRasaAuth } from "@/lib/rasaConfig";
+
 type ServiceName = "webapp" | "rasa" | "action" | "ssot";
 
 export type CollectedServiceSnapshot = {
@@ -25,6 +28,28 @@ const SERVICE_CONFIGS: ServiceConfig[] = [
 function readEnvValue(name: string): string | null {
   const value = process.env[name]?.trim();
   return value ? value : null;
+}
+
+function normalizeBaseUrl(input: string): string {
+  return input.trim().replace(/\/$/, "");
+}
+
+function getDefaultVersionUrl(config: ServiceConfig): string | null {
+  if (config.service === "webapp") {
+    const port = readEnvValue("PORT") ?? "3000";
+    return `http://127.0.0.1:${port}${MESSAGE_FEEDBACK_VERSION_ENDPOINT}`;
+  }
+
+  if (config.service === "rasa") {
+    const firstBotUrl = getRasaBots()[0]?.url;
+    if (!firstBotUrl) {
+      return null;
+    }
+
+    return `${normalizeBaseUrl(firstBotUrl)}/version`;
+  }
+
+  return null;
 }
 
 function extractString(payload: Record<string, unknown>, keys: string[]): string | null {
@@ -91,17 +116,20 @@ async function fetchVersionPayload(url: string): Promise<Record<string, unknown>
     });
 
     if (!response.ok) {
+      console.warn(`Version endpoint at ${url} returned non-OK status`, { status: response.status, statusText: response.statusText });
       return { status: response.status, statusText: response.statusText };
     }
 
     const contentType = response.headers.get("content-type") ?? "";
     if (!contentType.toLowerCase().includes("application/json")) {
+      console.warn(`Version endpoint at ${url} did not return JSON`, { contentType });
       return { warning: "non-json-version-response", contentType };
     }
 
     const payload = (await response.json()) as unknown;
     return payload && typeof payload === "object" ? (payload as Record<string, unknown>) : { value: payload };
   } catch (error) {
+    console.error(`Error fetching version from ${url}:`, error instanceof Error ? error.message : error);
     return {
       error: error instanceof Error ? error.message : "version-fetch-failed",
     };
@@ -115,7 +143,7 @@ export async function collectFeedbackServiceSnapshots(): Promise<CollectedServic
 
   for (const config of SERVICE_CONFIGS) {
     const envSnapshot = getEnvSnapshot(config) ?? { service: config.service };
-    const versionUrl = readEnvValue(config.versionUrlEnv);
+    const versionUrl = readEnvValue(config.versionUrlEnv) ?? getDefaultVersionUrl(config);
 
     if (!versionUrl) {
       if (envSnapshot.version || envSnapshot.commitSha || envSnapshot.imageTag || envSnapshot.modelName) {
@@ -124,7 +152,8 @@ export async function collectFeedbackServiceSnapshots(): Promise<CollectedServic
       continue;
     }
 
-    const payload = await fetchVersionPayload(versionUrl);
+    const resolvedVersionUrl = config.service === "rasa" ? withRasaAuth(versionUrl) : versionUrl;
+    const payload = await fetchVersionPayload(resolvedVersionUrl);
     snapshots.push(mergeMetadata(envSnapshot, payload));
   }
 

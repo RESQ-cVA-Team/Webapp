@@ -107,6 +107,24 @@ function formatTimestamp(value: string): string {
   }
 }
 
+function readSnapshotMetadataValue(
+  metadata: Record<string, unknown> | null | undefined,
+  keys: string[]
+): string | null {
+  if (!metadata) {
+    return null;
+  }
+
+  for (const key of keys) {
+    const candidate = metadata[key];
+    if (typeof candidate === "string" && candidate.trim()) {
+      return candidate.trim();
+    }
+  }
+
+  return null;
+}
+
 function buildThreadGroups(records: FeedbackRecord[]): ThreadGroup[] {
   const groups = new Map<string, ThreadGroup>();
 
@@ -553,17 +571,37 @@ export default function FeedbackAdminView({
                   <div className="grid gap-3">
                     {selectedRecord.serviceSnapshots.map((snapshot) => (
                       <div key={`${selectedRecord.id}-${snapshot.service}`} className="rounded-md border p-3">
+                        {(() => {
+                          const buildDate = readSnapshotMetadataValue(snapshot.metadata, ["buildDate"]);
+                          const llmProvider = readSnapshotMetadataValue(snapshot.metadata, ["llmProvider"]);
+                          const promptVersion = readSnapshotMetadataValue(snapshot.metadata, ["promptVersion"]);
+                          const ssotVersion = readSnapshotMetadataValue(snapshot.metadata, ["ssotVersion"]);
+
+                          return (
+                            <>
                         <div className="flex flex-wrap items-center gap-2">
                           <Badge>{snapshot.service}</Badge>
                           {snapshot.version ? <Badge variant="outline">{snapshot.version}</Badge> : null}
                           {snapshot.commitSha ? <Badge variant="outline">{snapshot.commitSha}</Badge> : null}
+                          {snapshot.imageTag ? <Badge variant="outline">{snapshot.imageTag}</Badge> : null}
                           {snapshot.modelName ? <Badge variant="outline">{snapshot.modelName}</Badge> : null}
+                          {llmProvider ? <Badge variant="outline">{llmProvider}</Badge> : null}
+                          {promptVersion ? <Badge variant="outline">prompt {promptVersion}</Badge> : null}
+                          {ssotVersion ? <Badge variant="outline">ssot {ssotVersion}</Badge> : null}
                         </div>
+                        {buildDate ? (
+                          <p className="mt-3 text-xs text-muted-foreground">
+                            Built {formatTimestamp(buildDate)}
+                          </p>
+                        ) : null}
                         {snapshot.metadata ? (
                           <pre className="mt-3 overflow-x-auto rounded bg-muted p-3 text-xs">
                             {JSON.stringify(snapshot.metadata, null, 2)}
                           </pre>
                         ) : null}
+                            </>
+                          );
+                        })()}
                       </div>
                     ))}
                     {selectedRecord.serviceSnapshots.length === 0 ? (

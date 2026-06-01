@@ -12,15 +12,21 @@ import { ScatterChartView } from "@/components/charts/ScatterChartView";
 import { HistogramChartView } from "@/components/charts/HistogramChartView";
 import { WaterfallChartView } from "@/components/charts/WaterfallChartView";
 import { BoxChartView } from "@/components/charts/BoxChartView";
+import type { StatisticalTestResultDTO } from "@/models/dto/response";
+import { MannWhitneyUView } from "@/components/charts/MannWhitneyUView";
 import { useTranslation } from 'react-i18next';
 import '@/i18n';
 
 export default function VisualizationWindow() {
   const visualization = useChatStore((s) => s.visualization);
   const selectedIndex = useChatStore((s) => s.selectedChartIndex);
+  const selectedStatIndex = useChatStore((s) => s.selectedStatisticsIndex);
   const { t } = useTranslation('common');
 
-  if (!visualization || selectedIndex === null || !visualization.charts?.length) {
+  const showStat = selectedStatIndex !== null && visualization?.stats && visualization.stats[selectedStatIndex];
+  const showChart = selectedIndex !== null && visualization?.charts && visualization.charts[selectedIndex] && !showStat;
+
+  if (!visualization || (!showChart && !showStat)) {
     return (
       <div>
         <div className=" font-semibold text-primary">{t('visualization.title')}</div>
@@ -29,9 +35,31 @@ export default function VisualizationWindow() {
     );
   }
 
+  if (showStat) {
+    const stats = visualization.stats as StatisticalTestResultDTO[];
+    const result = stats[selectedStatIndex];
+    if (result.test_type === 'MANN_WHITNEY_U_TEST') {
+      return <div className="relative h-full w-full overflow-auto p-4"><MannWhitneyUView result={result} /></div>;
+    }
+    return (
+      <div className="relative h-full w-full overflow-auto p-4">
+        <div className="rounded border bg-muted/40 p-4">
+          <div className="font-semibold">{result.title || result.test_type}</div>
+          <div className="mt-1 text-sm text-muted-foreground">Status: {result.status}</div>
+          {typeof result.p_value === "number" && (
+            <div className="text-sm text-muted-foreground">P-value: {result.p_value}</div>
+          )}
+          {result.reason && (
+            <div className="mt-1 text-sm text-muted-foreground">{result.reason}</div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   const charts = visualization.charts as ChartDTO[];
 
-  if (charts.length === 0 || selectedIndex >= charts.length) {
+  if (charts.length === 0 || selectedIndex === null || selectedIndex >= charts.length) {
     return <div className="text-center text-muted-foreground p-4">{t('visualization.none')}</div>;
   }
 

@@ -16,13 +16,15 @@ interface ChatStore {
 
   selectedChartIndex: number | null;
   setSelectedChartIndex: (i: number | null) => void;
+  selectedStatisticsIndex: number | null;
+  setSelectedStatisticsIndex: (i: number | null) => void;
 }
 
 export const useChatStore = create<ChatStore>((set) => ({
   visualization: null,
   setVisualization: (v) => set({ visualization: v }),
   history: [],
-  setHistory: (history) => set({ history }),
+  setHistory: (history) => set({ history: [...history].reverse() }),
   clearHistory: () => set({ history: [] }),
   addToHistory: (v) => set((state) => ({ history: [v, ...state.history] })),
   visualizationPlans: {},
@@ -35,4 +37,6 @@ export const useChatStore = create<ChatStore>((set) => ({
     })),
   selectedChartIndex: null,
   setSelectedChartIndex: (i) => set({ selectedChartIndex: i }),
+  selectedStatisticsIndex: null,
+  setSelectedStatisticsIndex: (i) => set({ selectedStatisticsIndex: i }),
 }));

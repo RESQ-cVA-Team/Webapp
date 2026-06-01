@@ -10,6 +10,8 @@ import { useSettingsStore } from "@/store/useSettingsStore";
 import { useTranslation } from "react-i18next";
 import i18n from "../../../i18n";
 import { LANGUAGE_LABELS, SUPPORTED_LANGUAGES } from "@/locales/config";
+import { getFeedbackConfigCached } from "@/lib/feedbackConfigClient";
+
 
 const baseLanguages: { label: string; value: string }[] = SUPPORTED_LANGUAGES.map((code) => ({ label: LANGUAGE_LABELS[code], value: code }));
 
@@ -38,21 +40,24 @@ export default function TopBar() {
 				setBotsByLang(map);
 					setBotLangs(langs);
 			})
-			.catch(() => setBotsByLang({}));
+			.catch((error) => {
+				console.error('Failed to fetch bots:', error);
+				setBotsByLang({});
+			});
 		return () => { cancelled = true };
 	}, []);
 
 	useEffect(() => {
 		let cancelled = false;
 
-		fetch('/api/feedback/config', { cache: 'no-store' })
-			.then((response) => response.ok ? response.json() : Promise.reject(response.status))
+		getFeedbackConfigCached()
 			.then((data: { canViewAdmin?: boolean; adminEnabled?: boolean }) => {
 				if (cancelled) return;
 				setCanViewFeedbackAdmin(data.canViewAdmin === true && data.adminEnabled === true);
 			})
-			.catch(() => {
+			.catch((error) => {
 				if (!cancelled) {
+					console.error('Failed to fetch feedback config:', error);
 					setCanViewFeedbackAdmin(false);
 				}
 			});
@@ -100,6 +105,7 @@ export default function TopBar() {
 					alt={t('topbar.logoAlt')} 
 					width={629} 
 					height={179}
+					priority
 					style={{ height: "200%", width: "auto" }} 
 				/>
 			</div>

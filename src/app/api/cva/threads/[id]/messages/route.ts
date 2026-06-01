@@ -1,5 +1,5 @@
-import { getToken } from "next-auth/jwt";
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@/auth";
 import { getCvaBaseUrl } from "@/lib/cvaConfig";
 
 export const runtime = "nodejs";
@@ -25,9 +25,9 @@ async function forwardResponse(res: Response) {
 }
 
 export async function GET(req: NextRequest, { params }: Params) {
-  const token = await getToken({ req });
+  const session = await auth();
 
-  if (!token?.accessToken) {
+  if (!session?.accessToken) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
 
@@ -35,22 +35,36 @@ export async function GET(req: NextRequest, { params }: Params) {
   const baseUrl = getCvaBaseUrl();
   const query = req.nextUrl.searchParams.toString();
   const upstreamUrl = `${baseUrl}/threads/${encodeURIComponent(id)}/messages${query ? `?${query}` : ""}`;
-
+try { 
   const res = await fetch(upstreamUrl, {
     method: "GET",
     headers: {
-      Authorization: `Bearer ${String(token.accessToken)}`,
+      Authorization: `Bearer ${String(session.accessToken)}`,
     },
     cache: "no-store",
   });
-
-  return forwardResponse(res);
+    if (!res.ok) {
+      console.error(`Failed to fetch CVA thread messages: ${res.status} ${res.statusText}`, {
+        upstreamUrl,
+        status: res.status,
+        statusText: res.statusText,
+      }); 
+    }
+  return await forwardResponse(res);
+} catch (error) {
+  console.error("Error fetching CVA thread messages", {
+    upstreamUrl,
+    error,
+  });
+    return new NextResponse("Internal Server Error", { status: 500 });
+  }
 }
 
-export async function POST(req: NextRequest, { params }: Params) {
-  const token = await getToken({ req });
 
-  if (!token?.accessToken) {
+export async function POST(req: NextRequest, { params }: Params) {
+  const session = await auth();
+
+  if (!session?.accessToken) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
 
@@ -65,15 +79,29 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   const { id } = await params;
   const baseUrl = getCvaBaseUrl();
-
+try {
   const res = await fetch(`${baseUrl}/threads/${encodeURIComponent(id)}/messages`, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${String(token.accessToken)}`,
+      Authorization: `Bearer ${String(session.accessToken)}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify(payload),
   });
-
-  return forwardResponse(res);
+    if (!res.ok) {console.error(`Failed to create CVA thread message: ${res.status} ${res.statusText}`, {
+        baseUrl,
+        payload,
+        status: res.status,
+        statusText: res.statusText,
+      });
+    }
+  return await forwardResponse(res);
+} catch (error) {
+  console.error("Error posting CVA thread message", {
+    upstreamUrl: `${baseUrl}/threads/${encodeURIComponent(id)}/messages`,
+    payload,
+    error,
+  });
+    return new NextResponse("Internal Server Error", { status: 500 });
+  }
 }

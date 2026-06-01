@@ -2,11 +2,13 @@ import type { ChartDTO } from "./charts";
 
 export interface StatisticalTestResultDTO {
   test_type: string;
+  status: "success" | "skipped" | "error";
+  reason?: string;
   p_value?: number;
   effect_size?: number;
   significance_level?: number;
-  passed?: boolean;
-  details?: Record<string, unknown>;
+  passed?: boolean | null;
+  details?: Record<string, unknown> | null;
   title?: string;
   description?: string;
 }
@@ -81,7 +83,10 @@ export function isVisualizationResponseDTO(value: unknown): value is Visualizati
   if (!value || typeof value !== "object") return false;
 
   const candidate = value as Record<string, unknown>;
-  return candidate.schema_version === 1 && Array.isArray(candidate.charts);
+  return (
+    candidate.schema_version === 1 &&
+    (Array.isArray(candidate.charts) || Array.isArray(candidate.stats))
+  );
 }
 
 export function resolveVisualizationTraceId(value: unknown): string | null {

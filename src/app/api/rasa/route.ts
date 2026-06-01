@@ -1,6 +1,6 @@
-import { getToken } from "next-auth/jwt";
 import { NextRequest, NextResponse } from "next/server";
-import { getRasaUrlForRequest } from "@/lib/rasaConfig";
+import { auth } from "@/auth";
+import { getRasaUrlForRequest, withRasaAuth } from "@/lib/rasaConfig";
 import { putUserAccessToken } from "@/lib/userTokenVault";
 import { buildRasaSenderId } from "@/lib/rasaSender";
 import { publishToSender } from "@/lib/sseBus";
@@ -53,16 +53,16 @@ export async function POST(req: NextRequest) {
   const traceId = readTraceId(req.headers);
 
   try {
-    const token = await getToken({ req });
+    const session = await auth();
 
-    if (!token?.accessToken || !token?.sub) {
+    if (!session?.accessToken || !session.user?.id) {
       return new NextResponse("Unauthorized", {
         status: 401,
         headers: withTraceIdHeaders(undefined, traceId),
       });
     }
 
-    const userSub = String(token.sub);
+    const userSub = String(session.user.id);
     const body = await req.json();
     const message = typeof body?.message === "string" ? body.message : "";
     const rawThreadId = body?.threadId;
@@ -82,9 +82,9 @@ export async function POST(req: NextRequest) {
     }
 
     const tokenPayload = {
-      accessToken: String(token.accessToken),
+      accessToken: String(session.accessToken),
       accessTokenExpiresAt:
-        typeof token.accessTokenExpires === "number" ? token.accessTokenExpires : undefined,
+        typeof session.accessTokenExpires === "number" ? session.accessTokenExpires : undefined,
     };
 
     putUserAccessToken({
@@ -121,7 +121,7 @@ export async function POST(req: NextRequest) {
 
     let rasaStreamRes: Response;
     try {
-      rasaStreamRes = await fetch(`${apiUrl}/webhooks/rest/webhook?stream=true`, {
+      rasaStreamRes = await fetch(withRasaAuth(`${apiUrl}/webhooks/rest/webhook?stream=true`), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
