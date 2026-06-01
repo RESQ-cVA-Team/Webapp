@@ -51,11 +51,16 @@ function publishRasaStreamChunk(senderId: string, chunk: string): number {
 
 export async function POST(req: NextRequest) {
   const traceId = readTraceId(req.headers);
+  const requestId = traceId ?? crypto.randomUUID();
 
   try {
     const token = await getToken({ req });
 
     if (!token?.accessToken || !token?.sub) {
+      console.warn("[rasa][post] Unauthorized request", {
+        requestId,
+        performsUpstreamCall: false,
+      });
       return new NextResponse("Unauthorized", {
         status: 401,
         headers: withTraceIdHeaders(undefined, traceId),
@@ -111,17 +116,23 @@ export async function POST(req: NextRequest) {
     const callbackUrl = callbackBase
       ? `${callbackBase}?rasaUrl=${encodeURIComponent(apiUrl)}&senderId=${encodeURIComponent(senderId)}${traceId ? `&traceId=${encodeURIComponent(traceId)}` : ""}`
       : null;
+    const upstreamUrl = `${apiUrl}/webhooks/rest/webhook?stream=true`;
 
-    console.info("[rasa] Forwarding chat request", createTraceLogContext(traceId, {
+    console.info("[rasa][post] Forwarding chat request", createTraceLogContext(traceId, {
+      requestId,
       senderId,
       threadId,
+      performsUpstreamCall: true,
+      upstreamMethod: "POST",
+      upstreamUrl,
+      messageLength: message.length,
       hasCallbackUrl: Boolean(callbackUrl),
       rasaUrl: apiUrl,
     }));
 
     let rasaStreamRes: Response;
     try {
-      rasaStreamRes = await fetch(`${apiUrl}/webhooks/rest/webhook?stream=true`, {
+      rasaStreamRes = await fetch(upstreamUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -140,23 +151,29 @@ export async function POST(req: NextRequest) {
         }),
       });
     } catch (error) {
-      console.error("[rasa] Upstream webhook request threw before response", createTraceLogContext(traceId, {
+      console.error("[rasa][post] Upstream webhook request threw before response", createTraceLogContext(traceId, {
+        requestId,
         senderId,
+        upstreamUrl,
         rasaUrl: apiUrl,
         error: error instanceof Error ? error.message : String(error),
       }));
       return createTraceErrorResponse("Rasa upstream unavailable", 502, traceId);
     }
 
-    console.info("[rasa] Received upstream stream response", createTraceLogContext(traceId, {
+    console.info("[rasa][post] Received upstream stream response", createTraceLogContext(traceId, {
+      requestId,
       senderId,
+      upstreamUrl,
       status: rasaStreamRes.status,
     }));
 
     if (!rasaStreamRes.ok) {
       const errorText = await rasaStreamRes.text();
-      console.error("[rasa] Upstream webhook request failed", createTraceLogContext(traceId, {
+      console.error("[rasa][post] Upstream webhook request failed", createTraceLogContext(traceId, {
+        requestId,
         senderId,
+        upstreamUrl,
         status: rasaStreamRes.status,
         response: errorText,
       }));
@@ -196,8 +213,11 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    console.info("[rasa] Published upstream messages to SSE", createTraceLogContext(traceId, {
+    console.info("[rasa][post] Published upstream messages to SSE", createTraceLogContext(traceId, {
+      requestId,
       senderId,
+      threadId,
+      upstreamUrl,
       publishedMessages,
     }));
 
@@ -206,7 +226,8 @@ export async function POST(req: NextRequest) {
       { headers: withTraceIdHeaders(undefined, traceId) }
     );
   } catch (error) {
-    console.error("[rasa] Unhandled route error", createTraceLogContext(traceId, {
+    console.error("[rasa][post] Unhandled route error", createTraceLogContext(traceId, {
+      requestId,
       error: error instanceof Error ? error.message : String(error),
     }));
     return createTraceErrorResponse("Chat request failed", 500, traceId);

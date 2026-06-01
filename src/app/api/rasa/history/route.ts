@@ -4,8 +4,11 @@ import { cookies, headers } from "next/headers";
 import { getFeedbackReporterAliases } from "@/lib/feedbackAccess";
 import { isMessageFeedbackEnabled } from "@/lib/feedbackConfig";
 import { listFeedbackStatusesForUserThread } from "@/lib/feedbackStore";
+import { getRasaUrlForRequest } from "@/lib/rasaConfig";
 import { fetchRasaHistory } from "@/lib/rasaHistory";
+import { buildRasaSenderId } from "@/lib/rasaSender";
 import { getThreadForUser } from "@/lib/threadRegistryStore";
+import { readTraceId } from "@/lib/traceId";
 
 const CHAT_DEBUG_MODE = process.env.NODE_ENV === "development";
 
@@ -24,20 +27,33 @@ function parseThreadId(raw: string | null): number | null {
 }
 
 export async function GET(req: NextRequest) {
+  const requestId = readTraceId(req.headers) ?? crypto.randomUUID();
   const cookieStore = await cookies();
   const headerStore = await headers();
   const token = await getToken({ req });
   const userSub = token?.sub ? String(token.sub) : null;
 
   if (!userSub) {
+    console.warn("[rasa][history] Unauthorized request", {
+      requestId,
+      threadId: parseThreadId(req.nextUrl.searchParams.get("threadId")),
+      performsUpstreamCall: false,
+    });
     return new NextResponse("Unauthorized", { status: 401 });
   }
 
   const threadId = parseThreadId(req.nextUrl.searchParams.get("threadId"));
+  const senderId = buildRasaSenderId(userSub, threadId);
 
   if (threadId !== null) {
     const thread = await getThreadForUser(userSub, threadId);
     if (!thread) {
+      console.warn("[rasa][history] Thread not found for request", {
+        requestId,
+        threadId,
+        senderId,
+        performsUpstreamCall: false,
+      });
       return NextResponse.json({
         history: [],
         error: "Thread not found",
@@ -47,6 +63,17 @@ export async function GET(req: NextRequest) {
   }
 
   const cookiesMap = new Map(cookieStore.getAll().map((cookie) => [cookie.name, cookie.value]));
+  const apiUrl = getRasaUrlForRequest(headerStore, cookiesMap);
+  const upstreamUrl = apiUrl ? `${apiUrl}/conversations/${senderId}/tracker` : null;
+
+  console.info("[rasa][history] Handling request", {
+    requestId,
+    threadId,
+    senderId,
+    performsUpstreamCall: Boolean(upstreamUrl),
+    upstreamMethod: upstreamUrl ? "GET" : null,
+    upstreamUrl,
+  });
 
   let result: Awaited<ReturnType<typeof fetchRasaHistory>>;
   try {
@@ -58,7 +85,13 @@ export async function GET(req: NextRequest) {
       includeDebugMetadata: CHAT_DEBUG_MODE,
     });
   } catch (error) {
-    console.error("Failed to fetch Rasa history", error);
+    console.error("[rasa][history] Failed to fetch Rasa history", {
+      requestId,
+      threadId,
+      senderId,
+      upstreamUrl,
+      error: error instanceof Error ? error.message : String(error),
+    });
     result = {
       history: [],
       error: error instanceof Error ? error.message : "Failed to fetch Rasa history",
@@ -85,6 +118,18 @@ export async function GET(req: NextRequest) {
       ...item,
       feedback: feedbackByMessageKey.get(item.feedbackKey) ?? null,
     };
+  });
+
+  console.info("[rasa][history] Completed request", {
+    requestId,
+    threadId,
+    senderId,
+    performsUpstreamCall: Boolean(upstreamUrl),
+    upstreamMethod: upstreamUrl ? "GET" : null,
+    upstreamUrl,
+    upstreamStatus: result.status,
+    historyItems: history.length,
+    error: result.error ?? null,
   });
 
   return NextResponse.json({ history, error: result.error, status: result.status });
