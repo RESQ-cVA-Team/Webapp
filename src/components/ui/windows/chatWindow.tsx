@@ -17,6 +17,7 @@ import { WaveAsset } from "../assets/wave-asset";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useThread } from "@/components/ThreadContext";
 import { ThreadName } from "../thread-name";
+import Fuse from "fuse.js";
 
 type Message = {
   id: string;
@@ -47,6 +48,13 @@ type Message = {
     title: string;
     payload: string;
   }>;
+};
+
+type AutocompleteEntry = {
+  id: string;
+  label: string;
+  searchTerms: string[];
+  description?: string;
 };
 
 type HistoryResponseItem = {
@@ -533,6 +541,31 @@ export default function ChatWindow() {
       es.close();
     };
   }, [currentThreadId]);
+
+
+  //AutoComplete
+      const fuseRef = useRef<Fuse<string> | null>(null);
+
+    /**
+     * Fetch all unique COLUMN values from the CSV via the Next.js API route.
+     * These values are used for autocompletion.
+     */
+    useEffect(() => {
+        fetch("/api/columns")
+            .then((res) => res.json())
+            .then((data) => {
+                if (Array.isArray(data)) {
+                    setColumns(data);
+                    // Fuse.js enables fuzzy search across user input
+                    fuseRef.current = new Fuse(data, {
+                        threshold: 0.4,
+                        ignoreLocation: true,
+                        findAllMatches: true,
+                    });
+                }
+            })
+            .catch((err) => console.error("Failed to fetch columns:", err));
+    }, []);
 
   const sendMessage = async (msg: string) => {
   if (!currentThreadId) return;
