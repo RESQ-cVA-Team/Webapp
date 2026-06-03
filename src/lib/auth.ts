@@ -50,7 +50,7 @@ function getSessionSubject(params: {
   return null;
 }
 
-function resolveSafeRedirect(url: string, baseUrl: string): string {
+export function resolveSafeRedirect(url: string, baseUrl: string): string {
   const normalizedBaseUrl = baseUrl.trim().replace(/\/$/, "");
 
   if (!url) {

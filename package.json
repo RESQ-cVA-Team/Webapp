@@ -6,7 +6,9 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "node server.js",
-    "lint": "eslint . --ignore-pattern .next --ignore-pattern next-env.d.ts"
+    "lint": "eslint . --ignore-pattern .next --ignore-pattern next-env.d.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@radix-ui/react-scroll-area": "^1.2.9",
@@ -42,7 +44,8 @@
     "eslint-config-next": "15.5.18",
     "tailwindcss": "^4",
     "tw-animate-css": "^1.3.0",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^3.0.0"
   },
   "pnpm": {
     "overrides": {
