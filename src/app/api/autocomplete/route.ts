@@ -1,27 +1,50 @@
 import { NextResponse } from "next/server";
-import fs from "fs";
+import { promises as fs } from "fs";
 import path from "path";
+import YAML from "yaml";
+
+type SsotEntry = {
+    canonical?: string;
+    synonyms?: string[];
+};
+
+function toUniqueStrings(values: Iterable<string>): string[] {
+    return Array.from(
+        new Set(
+            Array.from(values)
+                .map((value) => value.trim())
+                .filter((value) => value.length > 0)
+        )
+    ).sort((left, right) => left.localeCompare(right));
+}
 
 export async function GET() {
-    const filePath = path.join(process.cwd(), "data", "QI_info 3(in).csv");
-    const filePath = path.join(process.cwd(), )
-    const content = fs.readFileSync(filePath, "utf-8");
-    const lines = content.split("\n");
+    try {
+        const ssotDir = path.join(process.cwd(), "src", "shared", "SSOT");
+        const fileNames = await fs.readdir(ssotDir);
+        const yamlFiles = fileNames.filter((fileName) => /\.ya?ml$/i.test(fileName));
 
-    // Extract COLUMN values
-    const headers = lines[0].split(";");
-    const columnIndex = headers.indexOf("COLUMN");
+        const extractedValues = await Promise.all(
+            yamlFiles.map(async (fileName) => {
+                const filePath = path.join(ssotDir, fileName);
+                const content = await fs.readFile(filePath, "utf-8");
+                const parsed = YAML.parse(content);
 
-    if (columnIndex === -1) {
-        return NextResponse.json({ error: "COLUMN header not found" }, { status: 400 });
+                if (!Array.isArray(parsed)) {
+                    return [] as string[];
+                }
+
+                return parsed.flatMap((entry) => {
+                    const record = entry as SsotEntry;
+                    const firstSynonym = record.synonyms?.[0];
+                    return typeof firstSynonym === "string" ? [firstSynonym] : [];
+                });
+            })
+        );
+
+        return NextResponse.json(toUniqueStrings(extractedValues.flat()));
+    } catch (error) {
+        console.error("Failed to load SSOT autocomplete values", error);
+        return NextResponse.json({ error: "Failed to load autocomplete values" }, { status: 500 });
     }
-
-    const values = lines
-        .slice(1)
-        .map((line) => line.split(";")[columnIndex])
-        .filter((v) => v && v.trim().length > 0);
-
-    const uniqueValues = Array.from(new Set(values));
-
-    return NextResponse.json(uniqueValues);
 }
