@@ -13,12 +13,16 @@ import { getFeedbackStorageInfo } from "@/lib/feedbackStore";
 
 export async function GET() {
   const session = await auth();
+  if (!session) {
+    return new NextResponse("Unauthorized", { status: 401 });
+  }
+
   const storage = getFeedbackStorageInfo();
 
   return NextResponse.json({
     enabled: isMessageFeedbackEnabled(),
     adminEnabled: isFeedbackAdminEnabled(),
-    canViewAdmin: session ? getFeedbackIdentityFromSession(session).isAdmin : false,
+    canViewAdmin: getFeedbackIdentityFromSession(session).isAdmin,
     captureConversationContext: shouldCaptureFeedbackConversationContext(),
     commentMaxLength: getFeedbackCommentMaxLength(),
     disclosure: getFeedbackDisclosureText(),
