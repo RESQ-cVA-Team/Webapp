@@ -1,8 +1,8 @@
-import { getToken } from "next-auth/jwt";
 import { NextRequest, NextResponse } from "next/server";
 import { headers as nextHeaders } from "next/headers";
 import { getThreadForUser } from "@/lib/threadRegistryStore";
-import { createFeedbackReporterKey, getFeedbackIdentityFromToken, getFeedbackReporterAliases } from "@/lib/feedbackAccess";
+import { auth } from "@/auth";
+import { createFeedbackReporterKey, getFeedbackIdentityFromSession, getFeedbackReporterAliases } from "@/lib/feedbackAccess";
 import {
   getFeedbackCommentMaxLength,
   getFeedbackDisclosureText,
@@ -34,14 +34,25 @@ export async function POST(req: NextRequest) {
     return new NextResponse("Not found", { status: 404 });
   }
 
-  const token = await getToken({ req });
-  if (!token) {
+  const session = await auth();
+  if (!session) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
 
-  const identity = getFeedbackIdentityFromToken(token);
-  const reporterKey = createFeedbackReporterKey(identity.userId);
-  if (!identity.userId || !reporterKey) {
+  const identity = getFeedbackIdentityFromSession(session);
+  if (!identity.userId) {
+    return new NextResponse("Unauthorized", { status: 401 });
+  }
+
+  let reporterKey: string | null;
+  try {
+    reporterKey = createFeedbackReporterKey(identity.userId);
+  } catch (error) {
+    console.error("Feedback reporter key configuration error", error);
+    return NextResponse.json({ message: "Server misconfiguration" }, { status: 500 });
+  }
+
+  if (!reporterKey) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
 

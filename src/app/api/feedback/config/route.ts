@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getToken } from "next-auth/jwt";
+import { auth } from "@/auth";
 import {
   FEEDBACK_ISSUE_OPTIONS,
   getFeedbackCommentMaxLength,
@@ -8,17 +8,21 @@ import {
   isMessageFeedbackEnabled,
   shouldCaptureFeedbackConversationContext,
 } from "@/lib/feedbackConfig";
-import { getFeedbackIdentityFromToken } from "@/lib/feedbackAccess";
+import { getFeedbackIdentityFromSession } from "@/lib/feedbackAccess";
 import { getFeedbackStorageInfo } from "@/lib/feedbackStore";
 
-export async function GET(req: Request) {
-  const token = await getToken({ req: req as Parameters<typeof getToken>[0]["req"] });
+export async function GET() {
+  const session = await auth();
+  if (!session) {
+    return new NextResponse("Unauthorized", { status: 401 });
+  }
+
   const storage = getFeedbackStorageInfo();
 
   return NextResponse.json({
     enabled: isMessageFeedbackEnabled(),
     adminEnabled: isFeedbackAdminEnabled(),
-    canViewAdmin: token ? getFeedbackIdentityFromToken(token).isAdmin : false,
+    canViewAdmin: getFeedbackIdentityFromSession(session).isAdmin,
     captureConversationContext: shouldCaptureFeedbackConversationContext(),
     commentMaxLength: getFeedbackCommentMaxLength(),
     disclosure: getFeedbackDisclosureText(),

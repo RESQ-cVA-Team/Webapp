@@ -1,6 +1,6 @@
-import { getToken } from "next-auth/jwt";
 import { NextRequest, NextResponse } from "next/server";
-import { getFeedbackIdentityFromToken } from "@/lib/feedbackAccess";
+import { auth } from "@/auth";
+import { getFeedbackIdentityFromSession } from "@/lib/feedbackAccess";
 import { getAdminFeedbackById } from "@/lib/feedbackStore";
 import { isFeedbackAdminEnabled, isMessageFeedbackEnabled } from "@/lib/feedbackConfig";
 
@@ -16,12 +16,12 @@ export async function GET(req: NextRequest, { params }: Params) {
     return new NextResponse("Not found", { status: 404 });
   }
 
-  const token = await getToken({ req });
-  if (!token) {
+  const session = await auth();
+  if (!session) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
 
-  const identity = getFeedbackIdentityFromToken(token);
+  const identity = getFeedbackIdentityFromSession(session);
   if (!identity.isAdmin) {
     return new NextResponse("Forbidden", { status: 403 });
   }

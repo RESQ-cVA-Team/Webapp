@@ -45,14 +45,24 @@ export function LineChartView({ chart }: Props) {
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data}>
             <CartesianGrid strokeDasharray="3 3" />
-            <XAxis
-              dataKey="bin"
-              label={{
-                value: chart.metadata?.x_axis?.label ?? "",
-                position: "insideBottomRight",
-                offset: -5,
-              }}
-            />
+              <XAxis
+                dataKey="bin"
+                tickFormatter={(value) => {
+                  if (typeof value === "number" && value > 1000000000) {
+                    const date = new Date(value * 1000);
+                    const quarter = Math.floor(date.getMonth() / 3) + 1;
+                    return `Q${quarter} ${date.getFullYear()}`;
+                  }
+                  return String(value);
+                }}
+                interval="preserveStartEnd"
+                minTickGap={40}
+                label={{
+                  value: chart.metadata?.x_axis?.label ?? "",
+                  position: "insideBottomRight",
+                  offset: -5,
+                }}
+              />
             <YAxis
               label={{
                 value: chart.metadata?.y_axis?.label ?? "",

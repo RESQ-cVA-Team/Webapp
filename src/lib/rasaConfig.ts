@@ -6,6 +6,27 @@ export type RasaBot = {
   label: string;
 };
 
+function normalizeRasaBaseUrl(input: string): string {
+  return input.trim().replace(/\/$/, "");
+}
+
+export function getRasaAuthToken(): string | null {
+  const token = process.env.RASA_AUTH_TOKEN?.trim();
+  return token ? token : null;
+}
+
+export function withRasaAuth(url: string): string {
+  const normalized = normalizeRasaBaseUrl(url);
+  const token = getRasaAuthToken();
+  if (!token) {
+    return normalized;
+  }
+
+  const target = new URL(normalized);
+  target.searchParams.set("token", token);
+  return target.toString();
+}
+
 function normalizeLang(input?: string | null): string | null {
   if (!input) return null;
   const token = input.split(',')[0]?.trim().split(';')[0]?.toLowerCase();

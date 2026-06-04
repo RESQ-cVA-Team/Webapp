@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getToken } from "next-auth/jwt";
+import { auth } from "@/auth";
 import { createThreadForUser, listThreadsForUser } from "@/lib/threadRegistryStore";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET(req: NextRequest) {
-  const token = await getToken({ req });
-  const userId = token?.sub ? String(token.sub) : null;
+export async function GET() {
+  const session = await auth();
+  const userId = session?.user?.id ? String(session.user.id) : null;
   if (!userId) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
@@ -17,8 +17,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const token = await getToken({ req });
-  const userId = token?.sub ? String(token.sub) : null;
+  const session = await auth();
+  const userId = session?.user?.id ? String(session.user.id) : null;
   if (!userId) {
     return new NextResponse("Unauthorized", { status: 401 });
   }

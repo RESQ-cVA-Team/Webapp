@@ -1,6 +1,9 @@
 type TokenEntry = {
   accessToken: string;
+  refreshToken?: string | null;
   expiresAt: number;
+  storedUntil: number;
+  refreshedAt?: number;
 };
 
 const globalForUserTokenVault = globalThis as unknown as {
@@ -31,12 +34,16 @@ function readTokenEntry(sub: string): TokenEntry | null {
   const entry = tokenBySub.get(key);
   if (!entry) return null;
 
-  if (entry.expiresAt <= now()) {
+  if (entry.storedUntil <= now()) {
     tokenBySub.delete(key);
     return null;
   }
 
   return entry;
+}
+
+function computeStoredUntil(expiresAt: number): number {
+  return Math.max(expiresAt, now() + DEFAULT_TTL_MS);
 }
 
 export function inspectUserAccessTokenLookup(sub: string) {
@@ -60,8 +67,20 @@ export function putUserAccessToken(params: {
   accessToken: string;
   accessTokenExpiresAt?: number;
 }): void {
+  putUserTokens(params);
+}
+
+export function putUserTokens(params: {
+  sub: string;
+  accessToken: string;
+  refreshToken?: string | null;
+  accessTokenExpiresAt?: number;
+  accessTokenRefreshedAt?: number;
+}): void {
   const sub = normalizeSub(params.sub);
   if (!sub || !params.accessToken) return;
+
+  const existingEntry = readTokenEntry(sub);
 
   const expiresAt =
     typeof params.accessTokenExpiresAt === "number" && params.accessTokenExpiresAt > now()
@@ -70,15 +89,28 @@ export function putUserAccessToken(params: {
 
   const entry = {
     accessToken: params.accessToken,
+    refreshToken:
+      params.refreshToken === undefined
+        ? existingEntry?.refreshToken ?? null
+        : params.refreshToken,
     expiresAt,
+    storedUntil: computeStoredUntil(expiresAt),
+    refreshedAt:
+      typeof params.accessTokenRefreshedAt === "number"
+        ? params.accessTokenRefreshedAt
+        : existingEntry?.refreshedAt,
   };
 
   setTokenEntry(sub, entry);
 }
 
+export function getUserTokenEntry(sub: string): TokenEntry | null {
+  return readTokenEntry(sub);
+}
+
 export function getUserAccessToken(sub: string): string | null {
   const entry = readTokenEntry(sub);
-  if (entry) {
+  if (entry && entry.expiresAt > now()) {
     return entry.accessToken;
   }
 

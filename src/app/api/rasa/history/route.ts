@@ -1,6 +1,6 @@
-import { getToken } from "next-auth/jwt";
 import { NextRequest, NextResponse } from "next/server";
 import { cookies, headers } from "next/headers";
+import { auth } from "@/auth";
 import { getFeedbackReporterAliases } from "@/lib/feedbackAccess";
 import { isMessageFeedbackEnabled } from "@/lib/feedbackConfig";
 import { listFeedbackStatusesForUserThread } from "@/lib/feedbackStore";
@@ -30,8 +30,8 @@ export async function GET(req: NextRequest) {
   const requestId = readTraceId(req.headers) ?? crypto.randomUUID();
   const cookieStore = await cookies();
   const headerStore = await headers();
-  const token = await getToken({ req });
-  const userSub = token?.sub ? String(token.sub) : null;
+  const session = await auth();
+  const userSub = session?.user?.id ? String(session.user.id) : null;
 
   if (!userSub) {
     console.warn("[rasa][history] Unauthorized request", {

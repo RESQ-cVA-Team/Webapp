@@ -3,10 +3,6 @@
 	"dockerComposeFile": "docker-compose.yml",
 	"service": "webshop",
 	"workspaceFolder": "/workspace",
-	"postCreateCommand": "corepack enable && corepack prepare pnpm@latest --activate && pnpm install --frozen-lockfile",
-	"portsAttributes": {
-		"3002": {
-			"label": "3000"
-		}
-	}
+	"postCreateCommand": "pnpm install --frozen-lockfile",
+	"postStartCommand": "bash -lc 'if [[ ! -f node_modules/.pnpm/lock.yaml || pnpm-lock.yaml -nt node_modules/.pnpm/lock.yaml || package.json -nt node_modules/.pnpm/lock.yaml ]]; then pnpm install --frozen-lockfile; fi'",
 }

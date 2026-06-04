@@ -1,6 +1,5 @@
 import { createHash } from "crypto";
 import type { Session } from "next-auth";
-import type { JWT } from "next-auth/jwt";
 import { getFeedbackAdminEmails, getFeedbackAdminRoles } from "@/lib/feedbackConfig";
 
 function decodeJwtPayload(rawToken: string | null | undefined): Record<string, unknown> | null {
@@ -98,7 +97,12 @@ export function getAccessTokenName(accessToken: string | null | undefined): stri
 }
 
 function getReporterSalt(): string {
-  return process.env.FEEDBACK_REPORTER_SALT?.trim() || process.env.NEXTAUTH_SECRET?.trim() || "feedback";
+  const reporterSalt = process.env.FEEDBACK_REPORTER_SALT?.trim();
+  if (reporterSalt) {
+    return reporterSalt;
+  }
+
+  throw new Error("Missing FEEDBACK_REPORTER_SALT environment variable");
 }
 
 export function createFeedbackReporterKey(userId: string | null | undefined): string | null {
@@ -140,21 +144,6 @@ export function isFeedbackAdmin(params: {
 
   const tokenRoles = getAccessTokenRoles(params.accessToken);
   return tokenRoles.some((role) => adminRoles.includes(role));
-}
-
-export function getFeedbackIdentityFromToken(token: JWT) {
-  const fallbackEmail = getAccessTokenEmail(typeof token.accessToken === "string" ? token.accessToken : null);
-  const fallbackName = getAccessTokenName(typeof token.accessToken === "string" ? token.accessToken : null);
-
-  return {
-    userId: typeof token.sub === "string" ? token.sub : null,
-    userEmail: typeof token.email === "string" ? token.email : fallbackEmail,
-    userName: typeof token.name === "string" ? token.name : fallbackName,
-    isAdmin: isFeedbackAdmin({
-      email: typeof token.email === "string" ? token.email : fallbackEmail,
-      accessToken: typeof token.accessToken === "string" ? token.accessToken : null,
-    }),
-  };
 }
 
 export function getFeedbackIdentityFromSession(session: Session | null | undefined) {

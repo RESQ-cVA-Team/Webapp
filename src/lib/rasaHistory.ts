@@ -1,4 +1,4 @@
-import { getRasaUrlForRequest } from "@/lib/rasaConfig";
+import { getRasaUrlForRequest, withRasaAuth } from "@/lib/rasaConfig";
 import { buildRasaSenderId } from "@/lib/rasaSender";
 
 export type RasaHistoryEvent = {
@@ -68,7 +68,7 @@ function normalizeButtons(input: unknown): RasaHistoryButton[] | undefined {
 }
 
 export async function fetchRasaTrackerEvents(apiUrl: string, senderId: string) {
-  const tracker = await fetch(`${apiUrl}/conversations/${senderId}/tracker`, {
+  const tracker = await fetch(withRasaAuth(`${apiUrl}/conversations/${senderId}/tracker`), {
     cache: "no-store",
   });
   const contentType = tracker.headers.get("content-type") || "";

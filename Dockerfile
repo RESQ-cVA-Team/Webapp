@@ -1,27 +1,40 @@
-FROM node:18-alpine AS builder
+FROM node:22-alpine@sha256:968df39aedcea65eeb078fb336ed7191baf48f972b4479711397108be0966920 AS builder
 
 WORKDIR /app
 
-RUN npm install -g pnpm
+RUN corepack enable
 
-COPY package.json pnpm-lock.yaml ./
+COPY package.json pnpm-lock.yaml VERSION ./
 
-RUN pnpm install
+RUN pnpm install --frozen-lockfile
 
 COPY . .
 
 RUN pnpm build
 
-FROM node:18-alpine AS runner
+FROM node:22-alpine@sha256:968df39aedcea65eeb078fb336ed7191baf48f972b4479711397108be0966920 AS runner
 
 WORKDIR /app
 
-RUN npm install -g pnpm
-RUN mkdir -p /app/.data
+ARG WEBAPP_VERSION=""
+ARG WEBAPP_COMMIT_SHA=""
+ARG WEBAPP_IMAGE_TAG=""
+ARG WEBAPP_BUILD_DATE=""
 
-COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/.next/static ./.next/static
-COPY --from=builder /app/public ./public
+RUN mkdir -p /app/.data && chown -R node:node /app && chmod 700 /app/.data
+
+COPY --from=builder --chown=node:node /app/.next/standalone ./
+COPY --from=builder --chown=node:node /app/.next/static ./.next/static
+COPY --from=builder --chown=node:node /app/public ./public
+
+ENV WEBAPP_VERSION=${WEBAPP_VERSION}
+ENV WEBAPP_COMMIT_SHA=${WEBAPP_COMMIT_SHA}
+ENV WEBAPP_IMAGE_TAG=${WEBAPP_IMAGE_TAG}
+ENV WEBAPP_BUILD_DATE=${WEBAPP_BUILD_DATE}
+
+LABEL org.opencontainers.image.version=${WEBAPP_VERSION}
+LABEL org.opencontainers.image.revision=${WEBAPP_COMMIT_SHA}
+LABEL org.opencontainers.image.created=${WEBAPP_BUILD_DATE}
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -29,5 +42,7 @@ ENV FEEDBACK_LOCAL_STORE_PATH=/app/.data/feedback-store.json
 
 ENV HOSTNAME=0.0.0.0
 EXPOSE 3000
+
+USER node
 
 CMD ["node", "server.js"]
