@@ -9,5 +9,7 @@ WORKDIR /workspace
 RUN mkdir -p /workspace/node_modules /workspace/.pnpm-store \
 	&& chown -R node:node /workspace
 
+EXPOSE 3000
+
 SHELL ["/bin/bash", "-c"]
 CMD ["sleep", "infinity"]
