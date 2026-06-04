@@ -23,8 +23,21 @@ export default function VisualizationWindow() {
   const selectedStatIndex = useChatStore((s) => s.selectedStatisticsIndex);
   const { t } = useTranslation('common');
 
-  const showStat = selectedStatIndex !== null && visualization?.stats && visualization.stats[selectedStatIndex];
-  const showChart = selectedIndex !== null && visualization?.charts && visualization.charts[selectedIndex] && !showStat;
+  const activeChartIndex =
+    selectedIndex !== null
+      ? selectedIndex
+      : visualization?.charts && visualization.charts.length > 0
+        ? 0
+        : null;
+  const activeStatIndex =
+    selectedStatIndex !== null
+      ? selectedStatIndex
+      : activeChartIndex === null && visualization?.stats && visualization.stats.length > 0
+        ? 0
+        : null;
+
+  const showStat = activeStatIndex !== null && visualization?.stats && visualization.stats[activeStatIndex];
+  const showChart = activeChartIndex !== null && visualization?.charts && visualization.charts[activeChartIndex] && !showStat;
 
   if (!visualization || (!showChart && !showStat)) {
     return (
@@ -37,7 +50,7 @@ export default function VisualizationWindow() {
 
   if (showStat) {
     const stats = visualization.stats as StatisticalTestResultDTO[];
-    const result = stats[selectedStatIndex];
+    const result = stats[activeStatIndex];
     if (result.test_type === 'MANN_WHITNEY_U_TEST') {
       return <div className="relative h-full w-full overflow-auto p-4"><MannWhitneyUView result={result} /></div>;
     }
@@ -59,11 +72,11 @@ export default function VisualizationWindow() {
 
   const charts = visualization.charts as ChartDTO[];
 
-  if (charts.length === 0 || selectedIndex === null || selectedIndex >= charts.length) {
+  if (charts.length === 0 || activeChartIndex === null || activeChartIndex >= charts.length) {
     return <div className="text-center text-muted-foreground p-4">{t('visualization.none')}</div>;
   }
 
-  const chart: ChartDTO = charts[selectedIndex] as ChartDTO;
+  const chart: ChartDTO = charts[activeChartIndex] as ChartDTO;
 
   let content: ReactElement | null = null;
 

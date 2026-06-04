@@ -533,7 +533,7 @@ export default function ChatWindow() {
       closedByCleanup = true;
       es.close();
     };
-  }, [currentThreadId]);
+  }, [addMessage, currentThreadId]);
 
   useEffect(() => {
     fetch("/api/autocomplete")

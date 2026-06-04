@@ -50,9 +50,49 @@ function getSessionSubject(params: {
   return null;
 }
 
+export function resolveSafeRedirect(url: string, baseUrl: string): string {
+  const normalizedBaseUrl = baseUrl.trim().replace(/\/$/, "");
+
+  if (!url) {
+    return normalizedBaseUrl;
+  }
+
+  if (url.startsWith("/")) {
+    if (url.startsWith("//")) {
+      return normalizedBaseUrl;
+    }
+    return `${normalizedBaseUrl}${url}`;
+  }
+
+  try {
+    const target = new URL(url);
+    const allowedOrigins = new Set<string>([new URL(normalizedBaseUrl).origin]);
+
+    const configuredNextAuthUrl = process.env.NEXTAUTH_URL?.trim();
+    if (configuredNextAuthUrl) {
+      try {
+        allowedOrigins.add(new URL(configuredNextAuthUrl).origin);
+      } catch {
+        // Ignore invalid NEXTAUTH_URL here; runtime config validation belongs elsewhere.
+      }
+    }
+
+    if (allowedOrigins.has(target.origin)) {
+      return target.toString();
+    }
+  } catch {
+    // Fall back to the base URL on malformed absolute callback URLs.
+  }
+
+  return normalizedBaseUrl;
+}
+
 export const authConfig = {
   ...authBaseConfig,
   callbacks: {
+    async redirect({ url, baseUrl }) {
+      return resolveSafeRedirect(url, baseUrl);
+    },
     async jwt({ token, account }) {
       const sessionSubject = getSessionSubject({
         tokenSub: typeof token.sub === "string" ? token.sub : null,
