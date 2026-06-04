@@ -74,6 +74,7 @@ type HistoryApiResponse = {
 const PLAN_CHAT_DEBUG_MODE = process.env.NODE_ENV === "development";
 const INCOMING_MESSAGE_TTL_MS = 5000;
 
+
 function createPlanDebugKey(plan: VisualizationPlanMessageDTO, traceId: string | null): string | null {
   if (traceId) {
     return `trace:${traceId}`;
@@ -320,6 +321,8 @@ export default function ChatWindow() {
   const language = useSettingsStore((s) => s.language);
   const { t } = useTranslation('common');
   const isChatDisabled = currentThreadId === null;
+  const lastUserMessageRef = useRef<string>("");
+  const lastErrorHadRetryRef = useRef<boolean>(false);
 
   const emitPlanDebugMessage = useCallback((plan: VisualizationPlanMessageDTO, traceId: string | null) => {
     const planMessage = createPlanDebugEntry(plan, traceId, seenPlanMessageKeysRef.current);
@@ -428,6 +431,14 @@ export default function ChatWindow() {
       content: obj.text,
     };
 
+    if (lastErrorHadRetryRef.current) {
+      botMsg.buttons = [{
+        title: "Try again",
+        payload: lastUserMessageRef.current,
+      }];
+      lastErrorHadRetryRef.current = false;
+    }
+
     if (Array.isArray(obj.buttons)) {
       const buttons = obj.buttons
         .filter(isMessageButton)
@@ -446,6 +457,8 @@ export default function ChatWindow() {
 
   if (obj.custom) {
     setMessages((prev) => prev.filter((m) => m.kind !== "progress"));
+    const custom = obj.custom as { type?: string; retry?: boolean };
+    lastErrorHadRetryRef.current = custom?.type === "visualization_error" && custom?.retry === true;
     applyVisualizationFromCustom(obj.custom);
   }
  
@@ -453,7 +466,7 @@ export default function ChatWindow() {
 
   const handleButtonClick = async (buttonPayload: string) => {
     // Send a formatted message with the button payload
-    await sendMessage(`${buttonPayload}`);
+    await sendMessage(buttonPayload);
   };
 
   useEffect(() => {
@@ -536,6 +549,7 @@ export default function ChatWindow() {
 
   const sendMessage = async (msg: string) => {
   if (!currentThreadId) return;
+  lastUserMessageRef.current = msg;
 
   window.dispatchEvent(
     new CustomEvent("thread-activity", {
