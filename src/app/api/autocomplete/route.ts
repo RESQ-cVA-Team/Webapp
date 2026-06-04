@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { auth } from "@/auth";
 import { promises as fs } from "fs";
 import path from "path";
 import YAML from "yaml";
@@ -19,6 +20,11 @@ function toUniqueStrings(values: Iterable<string>): string[] {
 }
 
 export async function GET() {
+    const session = await auth();
+    if (!session?.user?.id) {
+        return new NextResponse("Unauthorized", { status: 401 });
+    }
+
     try {
         const ssotDir = path.join(process.cwd(), "src", "shared", "SSOT");
         const fileNames = await fs.readdir(ssotDir);
