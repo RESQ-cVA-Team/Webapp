@@ -133,11 +133,25 @@ function getConfiguredPostgresUrl(): string | null {
   const host = process.env.FEEDBACK_DB_HOST?.trim();
   const database = process.env.FEEDBACK_DB_NAME?.trim();
   const user = process.env.FEEDBACK_DB_USER?.trim();
-  const password = process.env.FEEDBACK_DB_PASSWORD ?? "";
+  const password = process.env.FEEDBACK_DB_PASSWORD?.trim();
   const port = process.env.FEEDBACK_DB_PORT?.trim() || "5432";
+  const hasDiscreteConfig = [
+    process.env.FEEDBACK_DB_HOST,
+    process.env.FEEDBACK_DB_NAME,
+    process.env.FEEDBACK_DB_USER,
+    process.env.FEEDBACK_DB_PASSWORD,
+    process.env.FEEDBACK_DB_PORT,
+    process.env.FEEDBACK_DB_SSL,
+  ].some((value) => typeof value === "string" && value.trim().length > 0);
 
-  if (!host || !database || !user) {
+  if (!hasDiscreteConfig) {
     return null;
+  }
+
+  if (!host || !database || !user || !password) {
+    throw new Error(
+      "FEEDBACK_DB_HOST, FEEDBACK_DB_NAME, FEEDBACK_DB_USER, and FEEDBACK_DB_PASSWORD are required when using FEEDBACK_DB_* configuration"
+    );
   }
 
   const url = new URL(`postgresql://${encodeURIComponent(user)}:${encodeURIComponent(password)}@${host}:${port}/${database}`);

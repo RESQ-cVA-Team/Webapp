@@ -7,7 +7,7 @@ import {
   withTraceIdHeaders,
 } from "@/lib/traceId";
 
-const FETCH_TIMEOUT_MS = Number(process.env.RASA_PROXY_TIMEOUT_MS ?? 60000);
+const FETCH_TIMEOUT_MS = Number(process.env.RASA_PROXY_TIMEOUT_MS ?? 120000);
 const ACTION_SERVER_TOKEN = process.env.ACTION_SERVER_TOKEN;
 
 type ProxyRequestBody = {

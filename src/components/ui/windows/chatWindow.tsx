@@ -532,7 +532,7 @@ export default function ChatWindow() {
       closedByCleanup = true;
       es.close();
     };
-  }, [currentThreadId]);
+  }, [addMessage, currentThreadId]);
 
   const sendMessage = async (msg: string) => {
   if (!currentThreadId) return;

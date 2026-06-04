@@ -140,7 +140,7 @@ export function SideMenu() {
     } finally {
       setLoading(false);
     }
-  }, [currentThreadId, postThread, setCurrentThreadId, t]);
+  }, [currentThreadId, setCurrentThreadId]);
 
 
   useEffect(() => {
