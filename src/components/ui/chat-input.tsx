@@ -80,7 +80,7 @@ export function ChatInput({
     }
 
     const target = extractAutocompleteTarget(message)
-    if (!target || target.length < 2) {
+    if (!target || target.length < 3) {
       return []
     }
 
