@@ -1,14 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { addSubscriberForSender } from "@/lib/sseBus";
+import { getRasaUrlForRequest } from "@/lib/rasaConfig";
+import { fetchRasaTrackerEvents } from "@/lib/rasaHistory";
 import { putUserAccessToken } from "@/lib/userTokenVault";
 import { buildRasaSenderId } from "@/lib/rasaSender";
+import { addSubscriberForSender, setCommittedCursorFloor } from "@/lib/sseBus";
 import { readTraceId } from "@/lib/traceId";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
+  const traceId = readTraceId(req.headers);
+  const requestId = traceId ?? crypto.randomUUID();
   const session = await auth();
 
   if (!session?.accessToken || !session.user?.id) {
@@ -43,6 +47,32 @@ export async function GET(req: NextRequest) {
     sub: senderId,
     ...tokenPayload,
   });
+
+  const cookiesMap = new Map(req.cookies.getAll().map((cookie) => [cookie.name, cookie.value]));
+  const rasaUrl = getRasaUrlForRequest(req.headers, cookiesMap);
+  if (rasaUrl) {
+    try {
+      const tracker = await fetchRasaTrackerEvents(rasaUrl, senderId);
+      if (!tracker.error) {
+        setCommittedCursorFloor(senderId, tracker.events.length - 1);
+      } else {
+        console.warn("[rasa][stream] Failed to seed committed cursor from tracker", {
+          requestId,
+          threadId,
+          senderId,
+          status: tracker.status,
+          error: tracker.error,
+        });
+      }
+    } catch (error) {
+      console.warn("[rasa][stream] Tracker cursor seed threw", {
+        requestId,
+        threadId,
+        senderId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
 
   const encoder = new TextEncoder();
   const clientSignal: AbortSignal | undefined = (req as unknown as { signal?: AbortSignal }).signal;

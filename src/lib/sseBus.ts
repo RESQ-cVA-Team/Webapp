@@ -1,3 +1,5 @@
+import type { RasaHistoryItem } from "@/lib/rasaHistory";
+
 type Subscriber = (payload: unknown) => void;
 
 type BufferedPayload = {
@@ -8,14 +10,18 @@ type BufferedPayload = {
 const globalForSseBus = globalThis as unknown as {
   sseSubscribersBySender?: Map<string, Set<Subscriber>>;
   sseBufferedPayloadsBySender?: Map<string, BufferedPayload[]>;
+  sseCommittedCursorBySender?: Map<string, number>;
 };
 
 const subscribersBySender = globalForSseBus.sseSubscribersBySender ?? new Map<string, Set<Subscriber>>();
 const bufferedPayloadsBySender =
   globalForSseBus.sseBufferedPayloadsBySender ?? new Map<string, BufferedPayload[]>();
+const committedCursorBySender =
+  globalForSseBus.sseCommittedCursorBySender ?? new Map<string, number>();
 
 globalForSseBus.sseSubscribersBySender = subscribersBySender;
 globalForSseBus.sseBufferedPayloadsBySender = bufferedPayloadsBySender;
+globalForSseBus.sseCommittedCursorBySender = committedCursorBySender;
 const MAX_BUFFERED_PAYLOADS_PER_SENDER = 20;
 const BUFFER_TTL_MS = 15000;
 
@@ -96,4 +102,121 @@ export function publishToSender(senderId: string, payload: unknown): void {
       console.error("SSE subscriber error for sender", senderId, err);
     }
   }
+}
+
+function getCommittedCursor(senderId: string): number {
+  const key = normalizeSenderId(senderId);
+  if (!key) return -1;
+  return committedCursorBySender.get(key) ?? -1;
+}
+
+export function setCommittedCursorFloor(senderId: string, cursor: number): void {
+  const key = normalizeSenderId(senderId);
+  if (!key || !Number.isFinite(cursor)) {
+    return;
+  }
+
+  const normalizedCursor = Math.trunc(cursor);
+  const current = getCommittedCursor(key);
+  if (normalizedCursor > current) {
+    committedCursorBySender.set(key, normalizedCursor);
+  }
+}
+
+export function publishCommittedHistoryItems(
+  senderId: string,
+  items: RasaHistoryItem[],
+  options?: {
+    minEventIndexExclusive?: number;
+    source?: string;
+    traceId?: string | null;
+  }
+): number {
+  const key = normalizeSenderId(senderId);
+  if (!key) {
+    return 0;
+  }
+
+  const minEventIndexExclusive =
+    typeof options?.minEventIndexExclusive === "number" && Number.isFinite(options.minEventIndexExclusive)
+      ? Math.trunc(options.minEventIndexExclusive)
+      : -1;
+  const floor = Math.max(getCommittedCursor(key), minEventIndexExclusive);
+
+  let published = 0;
+  let maxPublishedEventIndex = floor;
+
+  for (const item of items) {
+    if (!item || typeof item !== "object") {
+      continue;
+    }
+
+    if (item.role !== "user" && item.role !== "assistant") {
+      continue;
+    }
+
+    const eventIndex =
+      item.debug && typeof item.debug === "object" && typeof item.debug.eventIndex === "number"
+        ? item.debug.eventIndex
+        : null;
+
+    if (eventIndex !== null && eventIndex <= floor) {
+      continue;
+    }
+
+    const payload: Record<string, unknown> = {
+      role: item.role,
+    };
+
+    if (typeof item.text === "string" && item.text.length > 0) {
+      payload.text = item.text;
+    }
+
+    if (typeof item.rawText === "string" && item.rawText.length > 0) {
+      payload.rawText = item.rawText;
+    }
+
+    if (item.custom && typeof item.custom === "object") {
+      payload.custom = item.custom;
+    }
+
+    if (Array.isArray(item.buttons) && item.buttons.length > 0) {
+      payload.buttons = item.buttons;
+    }
+
+    if (typeof item.feedbackKey === "string") {
+      payload.feedbackKey = item.feedbackKey;
+    }
+
+    const debugPayload: Record<string, unknown> =
+      item.debug && typeof item.debug === "object" ? { ...item.debug } : {};
+
+    if (options?.source && typeof debugPayload.source !== "string") {
+      debugPayload.source = options.source;
+    }
+    if (options?.traceId) {
+      debugPayload.traceId = options.traceId;
+    }
+
+    if (Object.keys(debugPayload).length > 0) {
+      payload.debug = debugPayload;
+    }
+
+    if (payload.text === undefined && payload.custom === undefined) {
+      continue;
+    }
+
+    publishToSender(key, payload);
+    published += 1;
+
+    if (eventIndex !== null && eventIndex > maxPublishedEventIndex) {
+      maxPublishedEventIndex = eventIndex;
+    }
+  }
+
+  if (maxPublishedEventIndex > getCommittedCursor(key)) {
+    committedCursorBySender.set(key, maxPublishedEventIndex);
+  }
+
+  return published;
 }

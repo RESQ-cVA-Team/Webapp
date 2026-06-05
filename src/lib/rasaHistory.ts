@@ -40,13 +40,14 @@ export type RasaHistoryDebug = {
 export type RasaHistoryItem = {
   role: "user" | "assistant";
   text?: string;
+  rawText?: string;
   custom?: Record<string, unknown>;
   buttons?: RasaHistoryButton[];
   feedbackKey?: string;
   debug?: RasaHistoryDebug;
 };
 
-function normalizeButtons(input: unknown): RasaHistoryButton[] | undefined {
+export function normalizeButtons(input: unknown): RasaHistoryButton[] | undefined {
   if (!Array.isArray(input)) {
     return undefined;
   }
@@ -117,14 +118,22 @@ export function mapRasaTrackerEvents(events: RasaHistoryEvent[], includeDebugMet
         : undefined;
 
     if (event.event === "user") {
-      const text = typeof event.text === "string" ? event.text : event.parse_data?.text;
-      if (!text) return [];
+      const rawText = typeof event.text === "string" ? event.text : event.parse_data?.text;
+      if (!rawText) return [];
+      const uiDisplayText =
+        typeof event.metadata?.ui_display_text === "string"
+          ? event.metadata.ui_display_text
+          : typeof event.metadata?.uiDisplayText === "string"
+            ? event.metadata.uiDisplayText
+            : null;
+      const text = uiDisplayText && uiDisplayText.trim().length > 0 ? uiDisplayText : rawText;
       turnIndex += 1;
 
       return [
         {
           role: "user",
           text,
+          rawText,
           ...(includeDebugMetadata
             ? {
                 debug: {
