@@ -56,7 +56,6 @@ export function LineChartView({ chart }: Props) {
                   return String(value);
                 }}
                 interval="preserveStartEnd"
-                minTickGap={40}
                 label={{
                   value: chart.metadata?.x_axis?.label ?? "",
                   position: "insideBottomRight",
@@ -75,7 +74,7 @@ export function LineChartView({ chart }: Props) {
             {chart.series.map((s, i) => (
               <Line
                 key={s.name}
-                type="monotone"
+                type={chart.smooth ? "monotone" : "linear"}
                 dataKey={s.name}
                 stroke={`hsl(${(i * 70) % 360}, 70%, 50%)`}
                 strokeWidth={2}
