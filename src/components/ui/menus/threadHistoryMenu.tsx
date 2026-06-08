@@ -120,10 +120,6 @@ export function SideMenu() {
       const data = await res.json();
 
       const newThreads = (data.results || []);
-      // if (newThreads.length === 0) {
-      //   //await postThread(`${t('threads.name.default')}1`);
-      //   return;
-      // }
       if (newThreads.length === 0) {
         setThreads([]);
         setCurrentThreadId(null);
