@@ -36,11 +36,9 @@
 !/eslint.config.mjs
 !/components.json
 !/tailwind.config.js
-!/vitest.config.ts
 
 # Add source files
 !/src/**
 !/public/**
-!/tests/**
 /.env
 !/.env.example

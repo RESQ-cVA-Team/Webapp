@@ -1,18 +1,11 @@
 services:
   webshop:
-    build:
+    build: 
       context: ..
       dockerfile: .devcontainer/Dockerfile
-    init: true
     ports:
       - "3000:3000"
     volumes:
       - ..:/workspace:cached
-      - node_modules:/workspace/node_modules
-      - pnpm-store:/workspace/.pnpm-store
     extra_hosts:
       - "host.docker.internal:host-gateway"
-
-volumes:
-  node_modules:
-  pnpm-store:
