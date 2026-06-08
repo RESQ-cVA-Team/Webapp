@@ -5,21 +5,17 @@ import { LogOutIcon, Moon, Sun } from "lucide-react"
 import { signOut } from "next-auth/react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useSettingsStore } from "@/store/useSettingsStore";
 import { useTranslation } from "react-i18next";
 import i18n from "../../../i18n";
 import { LANGUAGE_LABELS, SUPPORTED_LANGUAGES } from "@/locales/config";
 import { getFeedbackConfigCached } from "@/lib/feedbackConfigClient";
-import { getRuntimeHealthCached, type RuntimeHealthResponse } from "@/lib/runtimeHealthClient";
 
 
 const baseLanguages: { label: string; value: string }[] = SUPPORTED_LANGUAGES.map((code) => ({ label: LANGUAGE_LABELS[code], value: code }));
 
 export default function TopBar() {
-	const DEV_DIAGNOSTICS = process.env.NODE_ENV === "development";
 	const theme = useSettingsStore((s) => s.theme);
 	const dark = useSettingsStore((s) => s.darkMode);
 	const setDark = useSettingsStore((s) => s.setDarkMode);
@@ -31,8 +27,6 @@ export default function TopBar() {
 	const [botsByLang, setBotsByLang] = useState<Record<string, boolean>>({});
 		const [botLangs, setBotLangs] = useState<string[]>([]);
 	const [canViewFeedbackAdmin, setCanViewFeedbackAdmin] = useState(false);
-	const [serviceHealth, setServiceHealth] = useState<RuntimeHealthResponse | null>(null);
-	const [serviceHealthError, setServiceHealthError] = useState<string | null>(null);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -72,79 +66,6 @@ export default function TopBar() {
 			cancelled = true;
 		};
 	}, []);
-
-	useEffect(() => {
-		let cancelled = false;
-
-		const load = async (forceRefresh = false) => {
-			try {
-				const data = await getRuntimeHealthCached(forceRefresh);
-				if (cancelled) return;
-				setServiceHealth(data);
-				setServiceHealthError(null);
-			} catch (error) {
-				if (cancelled) return;
-				setServiceHealthError(error instanceof Error ? error.message : String(error));
-			}
-		};
-
-		void load(true);
-		const intervalId = setInterval(() => {
-			void load(true);
-		}, 20000);
-
-		return () => {
-			cancelled = true;
-			clearInterval(intervalId);
-		};
-	}, []);
-
-	const showDiagnostics = !!serviceHealth || !!serviceHealthError || DEV_DIAGNOSTICS || canViewFeedbackAdmin;
-
-	const healthBadgeClass = (() => {
-		if (!serviceHealth) return "border-slate-500 text-slate-700 dark:text-slate-200";
-		switch (serviceHealth.overall) {
-			case "up":
-				return "border-emerald-500 text-emerald-700 dark:text-emerald-300";
-			case "degraded":
-				return "border-amber-500 text-amber-700 dark:text-amber-300";
-			case "down":
-			case "misconfigured":
-				return "border-rose-500 text-rose-700 dark:text-rose-300";
-			default:
-				return "border-slate-500 text-slate-700 dark:text-slate-200";
-		}
-	})();
-
-	const healthBadgeLabel = (() => {
-		if (serviceHealthError) return "Runtime ?";
-		if (!serviceHealth) return "Runtime ...";
-		if (serviceHealth.overall === "up") return "Runtime up";
-		if (serviceHealth.overall === "degraded") return "Runtime degraded";
-		if (serviceHealth.overall === "down" || serviceHealth.overall === "misconfigured") return "Runtime down";
-		return "Runtime unknown";
-	})();
-
-	const healthTooltipTitle = serviceHealth?.visibility === "full"
-		? "Runtime diagnostics"
-		: "Runtime status";
-
-	const renderStatusClass = (status: string) => {
-		switch (status) {
-			case "up":
-			case "ok":
-				return "text-emerald-300";
-			case "degraded":
-			case "warning":
-				return "text-amber-300";
-			case "down":
-			case "misconfigured":
-			case "error":
-				return "text-rose-300";
-			default:
-				return "text-slate-200";
-		}
-	};
 
 	useEffect(() => {
 		if (theme && theme !== "default") { 
@@ -189,76 +110,6 @@ export default function TopBar() {
 				/>
 			</div>
 			<div className="flex items-center gap-4 ">
-				{showDiagnostics ? (
-					<TooltipProvider>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<Badge variant="outline" className={healthBadgeClass}>
-									{healthBadgeLabel}
-								</Badge>
-							</TooltipTrigger>
-							<TooltipContent side="bottom" align="end" className="max-w-[560px] p-3 space-y-3">
-								<div className="font-semibold">{healthTooltipTitle}</div>
-								{serviceHealthError ? <div>Health check failed: {serviceHealthError}</div> : null}
-								{serviceHealth ? (
-									<>
-										<div className="opacity-90 text-xs">Checked: {new Date(serviceHealth.checkedAt).toLocaleTimeString()}</div>
-										<div className="space-y-1">
-											<div className="font-medium text-xs uppercase tracking-wide opacity-90">Core services</div>
-											{serviceHealth.services.map((svc) => (
-												<div key={svc.key} className="rounded border border-white/15 px-2 py-1.5">
-													<div className="flex items-center justify-between gap-3 text-xs">
-														<span className="font-medium">{svc.label}</span>
-														<span className={renderStatusClass(svc.status)}>{svc.status}</span>
-													</div>
-													<div className="text-[11px] opacity-90 mt-1 break-words">
-														{svc.httpStatus ? `HTTP ${svc.httpStatus} · ` : ""}
-														{svc.latencyMs ? `${svc.latencyMs}ms · ` : ""}
-														{svc.detail}
-													</div>
-												</div>
-											))}
-										</div>
-										{serviceHealth.external.length > 0 ? (
-											<div className="space-y-1 pt-1 border-t border-white/20">
-												<div className="font-medium text-xs uppercase tracking-wide opacity-90">External endpoints</div>
-												{serviceHealth.external.map((ext) => (
-													<div key={ext.key} className="rounded border border-white/15 px-2 py-1.5">
-														<div className="flex items-center justify-between gap-3 text-xs">
-															<span className="font-medium">{ext.label}</span>
-															<span className={renderStatusClass(ext.status)}>{ext.status}</span>
-														</div>
-														<div className="text-[11px] opacity-90 mt-1 break-words">
-															{ext.httpStatus ? `HTTP ${ext.httpStatus} · ` : ""}
-															{ext.latencyMs ? `${ext.latencyMs}ms · ` : ""}
-															{ext.detail}
-														</div>
-													</div>
-												))}
-											</div>
-										) : null}
-										{serviceHealth.visibility === "full" && serviceHealth.config.length > 0 ? (
-											<div className="space-y-1 pt-1 border-t border-white/20">
-												<div className="font-medium text-xs uppercase tracking-wide opacity-90">Config checks</div>
-												{serviceHealth.config.map((cfg) => (
-													<div key={cfg.key} className="rounded border border-white/15 px-2 py-1.5">
-														<div className="flex items-center justify-between gap-3 text-xs">
-															<span className="font-medium">{cfg.key}</span>
-															<span className={renderStatusClass(cfg.status)}>{cfg.status}</span>
-														</div>
-														<div className="text-[11px] opacity-90 mt-1 break-words">{cfg.detail}</div>
-													</div>
-												))}
-											</div>
-										) : null}
-									</>
-								) : (
-									<div>Collecting runtime diagnostics...</div>
-								)}
-							</TooltipContent>
-						</Tooltip>
-					</TooltipProvider>
-				) : null}
 				{canViewFeedbackAdmin ? (
 					<Button variant="outline" className="rounded  hover:bg-black/5" asChild>
 						<Link href="/admin/feedback">Feedback Admin</Link>

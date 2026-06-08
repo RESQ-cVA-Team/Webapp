@@ -313,7 +313,6 @@ async function fetchThreadHistory(threadId: number, seenPlanKeys: Set<string>): 
 export default function ChatWindow() {
   const { currentThreadId } = useThread();
   const [messages, setMessages] = useState<Message[]>([]);
-  const [autocompleteItems, setAutocompleteItems] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [isWaitingForBot, setIsWaitingForBot] = useState(false);
   const seenPlanMessageKeysRef = useRef<Set<string>>(new Set());
@@ -533,22 +532,7 @@ export default function ChatWindow() {
       closedByCleanup = true;
       es.close();
     };
-  }, [addMessage, currentThreadId]);
-
-  useEffect(() => {
-    fetch("/api/autocomplete")
-      .then((res) => res.json())
-      .then((data: unknown) => {
-        if (!Array.isArray(data)) {
-          return;
-        }
-
-        setAutocompleteItems(
-          data.filter((value): value is string => typeof value === "string")
-        );
-      })
-      .catch((err) => console.error("Failed to fetch autocomplete values:", err));
-  }, []);
+  }, [currentThreadId]);
 
   const sendMessage = async (msg: string) => {
   if (!currentThreadId) return;
@@ -634,7 +618,6 @@ export default function ChatWindow() {
           onSubmit={sendMessage}
           loading={isWaitingForBot}
           disabled={isChatDisabled}
-          autocompleteItems={autocompleteItems}
           placeholder={isChatDisabled ? t('chat.disabledPlaceholder') : t('chat.placeholder')}
         />
       </div>
