@@ -9,6 +9,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
+  const requestId = readTraceId(req.headers) ?? crypto.randomUUID();
   const session = await auth();
 
   if (!session?.accessToken || !session.user?.id) {
