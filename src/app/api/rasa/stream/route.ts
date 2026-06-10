@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { addSubscriberForSender } from "@/lib/sseBus";
+import { addSubscriberForSender, type SseBusEvent } from "@/lib/sseBus";
 import { putUserAccessToken } from "@/lib/userTokenVault";
 import { buildRasaSenderId } from "@/lib/rasaSender";
 import { readTraceId } from "@/lib/traceId";
@@ -50,7 +50,13 @@ export async function GET(req: NextRequest) {
 
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
-      const send = (payload: unknown) => {
+      const send = (event: SseBusEvent) => {
+        controller.enqueue(encoder.encode(`id: ${event.id}\n`));
+        const data = JSON.stringify(event.payload ?? {});
+        controller.enqueue(encoder.encode(`data: ${data}\n\n`));
+      };
+
+      const sendRaw = (payload: unknown) => {
         const data = JSON.stringify(payload ?? {});
         controller.enqueue(encoder.encode(`data: ${data}\n\n`));
       };
@@ -58,7 +64,7 @@ export async function GET(req: NextRequest) {
       const unsubscribe = addSubscriberForSender(senderId, send);
 
       // Initial event so the client knows the stream is live
-      send({ type: "connected" });
+      sendRaw({ type: "connected" });
 
       const keepAlive = setInterval(() => {
         controller.enqueue(encoder.encode(`: keep-alive\n\n`));
