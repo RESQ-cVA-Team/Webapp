@@ -62,5 +62,6 @@
   "general.yes": "Ano",
   "general.no": "Ne",
   "general.cancel": "Zrušit",
-  "general.ok": "OK"
+  "general.confirm": "Potvrdit",
+  "general.okay": "OK"
 }
