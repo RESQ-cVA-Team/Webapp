@@ -31,6 +31,8 @@ type Thread = {
 }
 
 export function SideMenu() {
+
+  const isAuthStatus = (status: number) => status === 401 || status === 403;
   const {
     open,
     setOpen,
@@ -113,6 +115,11 @@ export function SideMenu() {
       const res = await fetch('/api/threads', { method: 'GET' });
 
       if (!res.ok) {
+        if (isAuthStatus(res.status)) {
+          setThreads([]);
+          setCurrentThreadId(null);
+          return;
+        }
         console.error('Failed to fetch threads:', res.statusText);
         return;
       }

@@ -20,6 +20,7 @@ const baseLanguages: { label: string; value: string }[] = SUPPORTED_LANGUAGES.ma
 
 export default function TopBar() {
 	const DEV_DIAGNOSTICS = process.env.NODE_ENV === "development";
+	const isAuthStatus = (status: number) => status === 401 || status === 403;
 	const theme = useSettingsStore((s) => s.theme);
 	const dark = useSettingsStore((s) => s.darkMode);
 	const setDark = useSettingsStore((s) => s.setDarkMode);
@@ -37,7 +38,11 @@ export default function TopBar() {
 	useEffect(() => {
 		let cancelled = false;
 			fetch('/api/rasa/bots')
-			.then(r => r.ok ? r.json() : Promise.reject(r.status))
+			.then((response) => {
+				if (response.ok) return response.json();
+				if (isAuthStatus(response.status)) return { bots: [] as { lang: string }[] };
+				throw new Error(`Failed to fetch bots (${response.status})`);
+			})
 				.then((data: { bots: { lang: string }[] }) => {
 				if (cancelled) return;
 				const map: Record<string, boolean> = {};
@@ -47,7 +52,9 @@ export default function TopBar() {
 					setBotLangs(langs);
 			})
 			.catch((error) => {
-				console.error('Failed to fetch bots:', error);
+				if (!(error instanceof Error && /\(401\)|\(403\)/.test(error.message))) {
+					console.error('Failed to fetch bots:', error);
+				}
 				setBotsByLang({});
 			});
 		return () => { cancelled = true };
@@ -63,7 +70,9 @@ export default function TopBar() {
 			})
 			.catch((error) => {
 				if (!cancelled) {
-					console.error('Failed to fetch feedback config:', error);
+					if (!(error instanceof Error && /\(401\)|\(403\)/.test(error.message))) {
+						console.error('Failed to fetch feedback config:', error);
+					}
 					setCanViewFeedbackAdmin(false);
 				}
 			});

@@ -19,6 +19,10 @@ let cachedValue: FeedbackConfigResponse | null = null;
 let cachedAt = 0;
 let inflightPromise: Promise<FeedbackConfigResponse> | null = null;
 
+function isAuthStatus(status: number): boolean {
+  return status === 401 || status === 403;
+}
+
 export async function getFeedbackConfigCached(forceRefresh = false): Promise<FeedbackConfigResponse> {
   const now = Date.now();
   const cacheFresh = now - cachedAt < FEEDBACK_CONFIG_TTL_MS;
@@ -37,7 +41,9 @@ export async function getFeedbackConfigCached(forceRefresh = false): Promise<Fee
   })
   .then(async (response) => {
     if (!response.ok) {
-    console.error(`Failed to load feedback config: ${response.status} ${response.statusText}`);
+      if (!isAuthStatus(response.status)) {
+        console.error(`Failed to load feedback config: ${response.status} ${response.statusText}`);
+      }
       throw new Error(`Failed to load feedback config (${response.status})`);
     }
 
@@ -47,7 +53,9 @@ export async function getFeedbackConfigCached(forceRefresh = false): Promise<Fee
     return payload;
   })
   .catch((error) => {
-    console.error("Error fetching feedback config:", error);
+    if (!(error instanceof Error && /\(401\)|\(403\)/.test(error.message))) {
+      console.error("Error fetching feedback config:", error);
+    }
     throw error;
   })
   .finally(() => {

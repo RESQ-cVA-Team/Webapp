@@ -445,14 +445,10 @@ function computeOverall(
 
 export async function GET() {
   const session = await auth();
-  if (!session) {
-    return new NextResponse("Unauthorized", { status: 401 });
-  }
-
-  const identity = getFeedbackIdentityFromSession(session);
   const isDevRuntime = process.env.NODE_ENV === "development";
-  const canViewFullDiagnostics = isDevRuntime || identity.isAdmin;
-  const accessToken = typeof session.accessToken === "string" ? session.accessToken : null;
+  const identity = session ? getFeedbackIdentityFromSession(session) : null;
+  const canViewFullDiagnostics = !!session && (isDevRuntime || identity?.isAdmin === true);
+  const accessToken = session && typeof session.accessToken === "string" ? session.accessToken : null;
 
   const rasaTargets = getRasaVersionTargets();
   const rasaChecks = rasaTargets.length > 0
