@@ -55,6 +55,31 @@ export function SideMenu() {
     setSearchOpen(false);
     setSearchQuery("");
   }, [setCurrentThreadId]);
+  const bootstrapThread = useCallback(async (threadId: number) => {
+    try {
+      const res = await fetch('/api/rasa', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          threadId,
+          message: 'hi',
+          metadata: {
+            source: 'thread-bootstrap',
+            bootstrap: true,
+          },
+        }),
+      });
+
+      if (!res.ok) {
+        const errorText = await res.text().catch(() => '');
+        console.error('Failed to bootstrap thread with greeting:', res.status, errorText);
+      }
+    } catch (error) {
+      console.error('Failed to bootstrap thread with greeting:', error);
+    }
+  }, []);
 
   const deleteThread = async (id:number) => {
     try {
@@ -114,10 +139,11 @@ export function SideMenu() {
       toast(`Thread ${name} has been created`)
       setThreads((prev) => [data, ...prev.filter((thread) => thread.id !== data.id)]);
       setCurrentThreadId(data.id);
+      void bootstrapThread(data.id);
     } else {
       console.error('Failed to create thread:', res.status, data);
     }
-  }, [setCurrentThreadId]);
+  }, [bootstrapThread, setCurrentThreadId]);
 
   const getThreads = useCallback(async () => {
     setLoading(true);

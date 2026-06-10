@@ -70,6 +70,9 @@ export async function POST(req: NextRequest) {
     const userSub = String(session.user.id);
     const body = await req.json();
     const message = typeof body?.message === "string" ? body.message : "";
+    const providedMetadata = body?.metadata && typeof body.metadata === "object"
+      ? body.metadata as Record<string, unknown>
+      : null;
     const rawThreadId = body?.threadId;
     const threadId = typeof rawThreadId === "number" && Number.isFinite(rawThreadId) ? rawThreadId : null;
     const senderId = buildRasaSenderId(userSub, threadId);
@@ -143,11 +146,16 @@ export async function POST(req: NextRequest) {
           ...(callbackUrl
             ? {
                 metadata: {
+                  ...(providedMetadata ?? {}),
                   callback_url: callbackUrl,
                   ...(traceId ? { trace_id: traceId } : {}),
                 },
               }
-            : {}),
+            : providedMetadata
+              ? {
+                  metadata: providedMetadata,
+                }
+              : {}),
         }),
       });
     } catch (error) {

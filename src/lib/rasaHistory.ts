@@ -46,6 +46,14 @@ export type RasaHistoryItem = {
   debug?: RasaHistoryDebug;
 };
 
+function isBootstrapUserEvent(event: RasaHistoryEvent): boolean {
+  return (
+    event.event === "user" &&
+    event.metadata?.source === "thread-bootstrap" &&
+    event.metadata?.bootstrap === true
+  );
+}
+
 function normalizeButtons(input: unknown): RasaHistoryButton[] | undefined {
   if (!Array.isArray(input)) {
     return undefined;
@@ -111,6 +119,10 @@ export function mapRasaTrackerEvents(events: RasaHistoryEvent[], includeDebugMet
   let turnIndex = 0;
 
   return events.flatMap((event, eventIndex): RasaHistoryItem[] => {
+    if (isBootstrapUserEvent(event)) {
+      return [];
+    }
+
     const previousActionName =
       eventIndex > 0 && events[eventIndex - 1]?.event === "action"
         ? events[eventIndex - 1]?.name

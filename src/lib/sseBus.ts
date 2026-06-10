@@ -1,6 +1,12 @@
-type Subscriber = (payload: unknown) => void;
+export type SseBusEvent = {
+  id: string;
+  payload: unknown;
+};
+
+type Subscriber = (event: SseBusEvent) => void;
 
 type BufferedPayload = {
+  id: string;
   payload: unknown;
   timestamp: number;
 };
@@ -48,7 +54,7 @@ function bufferPayload(senderId: string, payload: unknown): void {
   const key = normalizeSenderId(senderId);
   if (!key) return;
 
-  const next = [...pruneBufferedPayloads(key), { payload, timestamp: now() }].slice(
+  const next = [...pruneBufferedPayloads(key), { id: crypto.randomUUID(), payload, timestamp: now() }].slice(
     -MAX_BUFFERED_PAYLOADS_PER_SENDER
   );
 
@@ -68,7 +74,7 @@ export function addSubscriberForSender(senderId: string, subscriber: Subscriber)
 
   for (const entry of bufferedEntries) {
     try {
-      subscriber(entry.payload);
+      subscriber({ id: entry.id, payload: entry.payload });
     } catch (err) {
       console.error("SSE buffered replay error for sender", senderId, err);
     }
@@ -87,11 +93,14 @@ export function addSubscriberForSender(senderId: string, subscriber: Subscriber)
 export function publishToSender(senderId: string, payload: unknown): void {
   const key = normalizeSenderId(senderId);
   bufferPayload(key, payload);
+  const bufferedEntries = bufferedPayloadsBySender.get(key);
+  const latestEntry = bufferedEntries?.[bufferedEntries.length - 1];
+  if (!latestEntry) return;
   const set = subscribersBySender.get(key);
   if (!set) return;
   for (const subscriber of set) {
     try {
-      subscriber(payload);
+      subscriber({ id: latestEntry.id, payload: latestEntry.payload });
     } catch (err) {
       console.error("SSE subscriber error for sender", senderId, err);
     }

@@ -53,6 +53,7 @@ type HistoryResponseItem = {
   role?: unknown;
   text?: unknown;
   custom?: unknown;
+  buttons?: unknown;
   feedbackKey?: unknown;
   feedback?: unknown;
   debug?: unknown;
@@ -72,7 +73,7 @@ type HistoryApiResponse = {
 };
 
 const PLAN_CHAT_DEBUG_MODE = process.env.NODE_ENV === "development";
-const INCOMING_MESSAGE_TTL_MS = 5000;
+const SEEN_SSE_EVENT_TTL_MS = 15000;
 
 
 function createPlanDebugKey(plan: VisualizationPlanMessageDTO, traceId: string | null): string | null {
@@ -119,57 +120,32 @@ function createMessageKey(message: Message): string {
   });
 }
 
+function createMessageCrossSourceKey(message: Message): string {
+  return stableSerialize({
+    sender: message.sender,
+    kind: message.kind ?? "normal",
+    content: message.content,
+    buttons: message.buttons ?? null,
+  });
+}
+
 function mergeMessages(historyMessages: Message[], liveMessages: Message[]): Message[] {
   const merged = [...historyMessages];
   const seen = new Set(historyMessages.map((message) => createMessageKey(message)));
+  const seenCrossSource = new Set(
+    historyMessages.map((message) => createMessageCrossSourceKey(message))
+  );
 
   for (const message of liveMessages) {
     const key = createMessageKey(message);
-    if (seen.has(key)) continue;
+    const crossSourceKey = createMessageCrossSourceKey(message);
+    if (seen.has(key) || seenCrossSource.has(crossSourceKey)) continue;
     seen.add(key);
+    seenCrossSource.add(crossSourceKey);
     merged.push(message);
   }
 
   return merged;
-}
-
-function createIncomingPayloadKey(payload: {
-  text?: unknown;
-  custom?: unknown;
-  type?: unknown;
-  buttons?: unknown;
-  progress?: unknown;
-  feedbackKey?: unknown;
-  debug?: unknown;
-}): string | null {
-  const debug = payload.debug && typeof payload.debug === "object"
-    ? (payload.debug as { eventIndex?: unknown; source?: unknown })
-    : null;
-  const normalized = {
-    text: typeof payload.text === "string" ? payload.text : null,
-    custom: payload.custom ?? null,
-    type: typeof payload.type === "string" ? payload.type : null,
-    buttons: Array.isArray(payload.buttons) ? payload.buttons : null,
-    progress: typeof payload.progress === "string" ? payload.progress : null,
-    feedbackKey: typeof payload.feedbackKey === "string" ? payload.feedbackKey : null,
-    eventIndex: typeof debug?.eventIndex === "number" ? debug.eventIndex : null,
-    source: typeof debug?.source === "string" ? debug.source : null,
-  };
-
-  if (
-    normalized.text === null &&
-    normalized.custom === null &&
-    normalized.type === null &&
-    normalized.buttons === null &&
-    normalized.progress === null &&
-    normalized.feedbackKey === null &&
-    normalized.eventIndex === null &&
-    normalized.source === null
-  ) {
-    return null;
-  }
-
-  return stableSerialize(normalized);
 }
 
 function getCustomProgressText(custom: unknown): string | null {
@@ -259,6 +235,12 @@ function mapHistoryItems(items: unknown[], seenPlanKeys: Set<string>): { mapped:
       id: crypto.randomUUID(),
       sender: candidate.role === "user" ? "user" : "other",
       content: candidate.text,
+      buttons: Array.isArray(candidate.buttons)
+        ? candidate.buttons.filter(isMessageButton).map((button) => ({
+            title: button.title,
+            payload: button.payload,
+          }))
+        : undefined,
       feedbackKey: typeof candidate.feedbackKey === "string" ? candidate.feedbackKey : undefined,
       feedback:
         candidate.feedback && typeof candidate.feedback === "object"
@@ -318,7 +300,7 @@ export default function ChatWindow() {
   const [loading, setLoading] = useState(false);
   const [isWaitingForBot, setIsWaitingForBot] = useState(false);
   const seenPlanMessageKeysRef = useRef<Set<string>>(new Set());
-  const seenIncomingPayloadKeysRef = useRef<Map<string, number>>(new Map());
+  const seenIncomingEventIdsRef = useRef<Map<string, number>>(new Map());
   const language = useSettingsStore((s) => s.language);
   const { t } = useTranslation('common');
   const isChatDisabled = currentThreadId === null;
@@ -356,7 +338,7 @@ export default function ChatWindow() {
     }
   }, [emitPlanDebugMessage]);
 
-  const addMessage = useCallback((payload: unknown) => {
+  const addMessage = useCallback((payload: unknown, eventId?: string) => {
   const obj = payload as {
     text?: unknown;
     custom?: unknown;
@@ -383,22 +365,21 @@ export default function ChatWindow() {
     return;
   }
 
-  const payloadKey = createIncomingPayloadKey(obj);
-  if (payloadKey) {
+  if (eventId) {
     const now = Date.now();
 
-    for (const [key, timestamp] of seenIncomingPayloadKeysRef.current.entries()) {
-      if (now - timestamp > INCOMING_MESSAGE_TTL_MS) {
-        seenIncomingPayloadKeysRef.current.delete(key);
+    for (const [key, timestamp] of seenIncomingEventIdsRef.current.entries()) {
+      if (now - timestamp > SEEN_SSE_EVENT_TTL_MS) {
+        seenIncomingEventIdsRef.current.delete(key);
       }
     }
 
-    const previousSeenAt = seenIncomingPayloadKeysRef.current.get(payloadKey);
-    if (typeof previousSeenAt === "number" && now - previousSeenAt <= INCOMING_MESSAGE_TTL_MS) {
+    const previousSeenAt = seenIncomingEventIdsRef.current.get(eventId);
+    if (typeof previousSeenAt === "number" && now - previousSeenAt <= SEEN_SSE_EVENT_TTL_MS) {
       return;
     }
 
-    seenIncomingPayloadKeysRef.current.set(payloadKey, now);
+    seenIncomingEventIdsRef.current.set(eventId, now);
   }
 
   const progressText =
@@ -472,7 +453,7 @@ export default function ChatWindow() {
 
   useEffect(() => {
     seenPlanMessageKeysRef.current.clear();
-    seenIncomingPayloadKeysRef.current.clear();
+    seenIncomingEventIdsRef.current.clear();
 
     let cancelled = false;
 
@@ -529,7 +510,7 @@ export default function ChatWindow() {
     es.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data ?? "null");
-        addMessage(data);
+        addMessage(data, event.lastEventId || undefined);
       } catch (err) {
         console.error("SSE message parse error:", err);
       }
