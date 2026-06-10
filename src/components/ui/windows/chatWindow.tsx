@@ -17,6 +17,7 @@ import { WaveAsset } from "../assets/wave-asset";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useThread } from "@/components/ThreadContext";
 import { ThreadName } from "../thread-name";
+import InfoAlertWindow from "./infoAlertWindow";
 
 type Message = {
   id: string;
@@ -601,10 +602,10 @@ export default function ChatWindow() {
   return (
     <div className=" flex flex-col h-full">
       <div className="gap-0 bg-transparent relative min-h-0 flex-none"  >  
-        <div className="w-[101%] h-15 rounded-t-xl z-10 flex items-center justify-between px-10 bg-gradient-to-tl from-secondary to-primary">
-          <div className="flex w-full gap-2 items-center h-full min-h-">
-            <ThreadName  />
-            {/* <p className="text-white font-semibold">{t('robot.intro')}</p><RobotIcon className="w-6 h-6 min-h-6" /> */}
+        <div className="w-[101%] h-15 rounded-t-xl z-10 flex items-center justify-between px-10 pr-4 bg-gradient-to-tl from-secondary to-primary">
+          <div className="flex h-full min-h-0 w-full items-center justify-between gap-2">
+            <ThreadName />
+            <InfoAlertWindow />
           </div>
         </div>
         <WaveAsset className=" absolute w-full max-h-15 min-h-10 fill-gradient-to-r from-primary to-accent align-self bg-transparent z-1 p-0 pointer-events-none" />

@@ -56,5 +56,11 @@
   "visualization.type.radar": "Radarový graf",
   "visualization.type.box": "Krabicový graf",
   "carousel.previous": "Předchozí snímek",
-  "carousel.next": "Další snímek"
+  "carousel.next": "Další snímek",
+  "welcome.title": "Vítejte u Klinického virtuálního asistenta",
+  "welcome.description": "Krátký úvod, než začnete.",
+  "general.yes": "Ano",
+  "general.no": "Ne",
+  "general.cancel": "Zrušit",
+  "general.ok": "OK"
 }

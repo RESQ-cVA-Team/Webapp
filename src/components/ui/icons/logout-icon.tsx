@@ -1,18 +1,12 @@
 //https://fonts.google.com/icons?selected=Material+Icons+Outlined:logout:&icon.size=24&icon.color=%231f1f1f&icon.set=Material+Icons
 const LogoutIcon = ({
-    width,
-    height,
     className,
 }: {
-    width: number;
-    height: number;
     className?: string;
 }) => {
     return (
         <svg
-            className={className}
-            width={`${width}`}
-            height={`${height}`}
+
             viewBox="0 0 24 24"
             fill="none"
             xmlns="http://www.w3.org/2000/svg"
