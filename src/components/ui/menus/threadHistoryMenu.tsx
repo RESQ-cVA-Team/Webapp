@@ -1,4 +1,5 @@
 "use client"
+import Fuse from "fuse.js";
 import {
   Sidebar,
   SidebarContent,
@@ -14,7 +15,7 @@ import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { SquarePen, Search, X, Pencil } from "lucide-react";
 import { ArrowLeftToLine, PanelLeftIcon } from "lucide-react"
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
@@ -41,8 +42,19 @@ export function SideMenu() {
   const [threads, setThreads] = useState<Thread[]>([]);
   const [openId, setOpenId] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<Thread[]>([]);
+  const [selectedSearchIndex, setSelectedSearchIndex] = useState(0);
+  const searchResultRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
   const { currentThreadId, setCurrentThreadId } = useThread();
+
+  const selectThread = useCallback((threadId: number) => {
+    setCurrentThreadId(threadId);
+    setSearchOpen(false);
+    setSearchQuery("");
+  }, [setCurrentThreadId]);
 
   const deleteThread = async (id:number) => {
     try {
@@ -168,6 +180,65 @@ export function SideMenu() {
       window.removeEventListener("thread-activity", onThreadActivity as EventListener);
     };
   }, []);
+
+  useEffect(() => {
+    if (!searchOpen) {
+      setSearchQuery("");
+      setSelectedSearchIndex(0);
+    }
+  }, [searchOpen]);
+
+  useEffect(() => {
+    const query = searchQuery.trim();
+
+    if (!query) {
+      setSearchResults(threads);
+      return;
+    }
+
+    const fuse = new Fuse(threads, {
+      keys: ["name"],
+      threshold: 0.35,
+      ignoreLocation: true,
+      minMatchCharLength: 1,
+    });
+
+    setSearchResults(fuse.search(query).map(({ item }) => item));
+  }, [searchQuery, threads]);
+
+  useEffect(() => {
+    if (searchResults.length === 0) {
+      setSelectedSearchIndex(0);
+      return;
+    }
+
+    setSelectedSearchIndex((current) => Math.min(current, searchResults.length - 1));
+  }, [searchResults]);
+
+  useEffect(() => {
+    searchResultRefs.current[selectedSearchIndex]?.scrollIntoView({ block: "nearest" });
+  }, [selectedSearchIndex]);
+
+  const handleSearchKeyDown = useCallback((event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (searchResults.length === 0) return;
+
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setSelectedSearchIndex((current) => (current + 1) % searchResults.length);
+      return;
+    }
+
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setSelectedSearchIndex((current) => (current - 1 + searchResults.length) % searchResults.length);
+      return;
+    }
+
+    if (event.key === "Enter") {
+      event.preventDefault();
+      selectThread(searchResults[selectedSearchIndex]?.id ?? searchResults[0].id);
+    }
+  }, [searchResults, selectThread, selectedSearchIndex]);
   
   return (
     //Collaps/Expand Button
@@ -237,16 +308,69 @@ export function SideMenu() {
             </DialogContent>
           </Dialog>
 
-          {/* Search Threads Button*/}
-          <SidebarMenuButton
-            variant="outline"
-            tooltip={t('threads.menu.search')}
-            className="w-full flex items-center justify-center md:justify-start hover:text-white" 
-            onClick={() => toast("Search Threads clicked! (Not Yet Implemented)") }
-          >
-            <Search className="w-4 h-4" />
-            <span className="ml-2">{t('threads.menu.search')}</span>
-          </SidebarMenuButton>
+          <Dialog open={searchOpen} onOpenChange={setSearchOpen}>
+            <DialogTrigger asChild>
+              {/* Search Threads Button*/}
+              <SidebarMenuButton
+                variant="outline"
+                tooltip={t('threads.menu.search')}
+                className="w-full flex items-center justify-center md:justify-start hover:text-white"
+              >
+                <Search className="w-4 h-4" />
+                <span className="ml-2">{t('threads.menu.search')}</span>
+              </SidebarMenuButton>
+            </DialogTrigger>
+            <DialogContent
+              className="flex h-[28rem] max-h-[80vh] flex-col sm:max-w-md"
+              onCloseAutoFocus={(event) => {
+                event.preventDefault();
+                if (document.activeElement instanceof HTMLElement) {
+                  document.activeElement.blur();
+                }
+              }}
+            >
+              <DialogHeader className="mb-2">
+                <DialogTitle>{t('threads.menu.search')}</DialogTitle>
+                <DialogDescription>
+                  {t('threads.search.description')}
+                </DialogDescription>
+              </DialogHeader>
+              <Field className="mb-4">
+                <Input
+                  autoFocus
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  onKeyDown={handleSearchKeyDown}
+                  placeholder={t('threads.search.placeholder')}
+                />
+              </Field>
+              <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+                {searchResults.length > 0 ? (
+                  searchResults.map((thread, index) => (
+                    <button
+                      key={thread.id}
+                      type="button"
+                      ref={(element) => {
+                        searchResultRefs.current[index] = element;
+                      }}
+                      onClick={() => selectThread(thread.id)}
+                      onMouseEnter={() => setSelectedSearchIndex(index)}
+                      className={`w-full rounded px-3 py-2 text-left text-sm transition-colors hover:bg-sidebar-accent hover:text-white ${selectedSearchIndex === index ? "bg-sidebar-accent text-white" : ""}`}
+                    >
+                      <span className="block truncate">{thread.name}</span>
+                    </button>
+                  ))
+                ) : (
+                  <Alert className="border-dashed bg-black/5">
+                    <AlertTitle>{t('threads.search.empty.title')}</AlertTitle>
+                    <AlertDescription className="text-xs">
+                      {t('threads.search.empty.description')}
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </div>
+            </DialogContent>
+          </Dialog>
         </SidebarGroup>
 
         {/*Conversation Threads List*/}
@@ -278,7 +402,7 @@ export function SideMenu() {
                     <SidebarMenuButton
                       onClick={(e) => {
                         e.stopPropagation();
-                        setCurrentThreadId(thread.id);
+                        selectThread(thread.id);
                         
                       }}
                       className=" group-hover/item:text-white hover:text-white">
@@ -291,9 +415,9 @@ export function SideMenu() {
                       <DialogTrigger asChild>
                         <button
                           onClick={(e) => e.stopPropagation()}
-                          className=" opacity-0 transition-opacity duration-75 group-hover/item:opacity-100 p-1 rounded text-white  hover:text-black"
+                          className=" opacity-0 transition-opacity duration-75 group-hover/item:opacity-100 p-1 rounded text-white"
                         >
-                          <Pencil className="w-4 h-4" />
+                          <Pencil className="w-4 h-4 hover:fill-white" />
                         </button>
                       </DialogTrigger>
 

@@ -80,7 +80,7 @@ export default function ChatBubble({
             {buttons.map((btn, idx) => (
               <button
                 key={idx}
-                onClick={() => onButtonClick?.(btn.payload)} //changed to title to look more natural in the chatlog, can be payload if needed
+                onClick={() => onButtonClick?.(btn.payload)}
                 className="px-3 py-1 text-xs font-medium rounded-full border border-current opacity-80 hover:opacity-100 transition-opacity"
               >
                 {btn.title}
