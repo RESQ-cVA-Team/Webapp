@@ -7,7 +7,6 @@ import { listFeedbackStatusesForUserThread } from "@/lib/feedbackStore";
 import { getRasaUrlForRequest } from "@/lib/rasaConfig";
 import { fetchRasaHistory } from "@/lib/rasaHistory";
 import { buildRasaSenderId } from "@/lib/rasaSender";
-import { getThreadForUser } from "@/lib/threadRegistryStore";
 import { readTraceId } from "@/lib/traceId";
 
 const CHAT_DEBUG_MODE = process.env.NODE_ENV === "development";
@@ -44,23 +43,6 @@ export async function GET(req: NextRequest) {
 
   const threadId = parseThreadId(req.nextUrl.searchParams.get("threadId"));
   const senderId = buildRasaSenderId(userSub, threadId);
-
-  if (threadId !== null) {
-    const thread = await getThreadForUser(userSub, threadId);
-    if (!thread) {
-      console.warn("[rasa][history] Thread not found for request", {
-        requestId,
-        threadId,
-        senderId,
-        performsUpstreamCall: false,
-      });
-      return NextResponse.json({
-        history: [],
-        error: "Thread not found",
-        status: 404,
-      });
-    }
-  }
 
   const cookiesMap = new Map(cookieStore.getAll().map((cookie) => [cookie.name, cookie.value]));
   const apiUrl = getRasaUrlForRequest(headerStore, cookiesMap);

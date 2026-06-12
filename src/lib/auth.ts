@@ -93,7 +93,21 @@ export const authConfig = {
     async redirect({ url, baseUrl }) {
       return resolveSafeRedirect(url, baseUrl);
     },
-    async jwt({ token, account }) {
+    async jwt({ token, account, profile }) {
+      // On every fresh sign-in, lock token.sub to the Keycloak user UUID sourced
+      // directly from the ID-token claims (profile.sub). This is the only stable
+      // identifier: account.providerAccountId and NextAuth's own token.sub are both
+      // unreliable in NextAuth v5 beta and may change between logins.
+      if (account && profile) {
+        const keycloakSub =
+          typeof (profile as Record<string, unknown>).sub === "string"
+            ? ((profile as Record<string, unknown>).sub as string).trim()
+            : null;
+        if (keycloakSub) {
+          token.sub = keycloakSub;
+        }
+      }
+
       const sessionSubject = getSessionSubject({
         tokenSub: typeof token.sub === "string" ? token.sub : null,
         accountProviderAccountId:

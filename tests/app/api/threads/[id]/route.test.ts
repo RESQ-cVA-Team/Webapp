@@ -5,6 +5,7 @@ const authMock = vi.hoisted(() => vi.fn());
 const getThreadForUserMock = vi.hoisted(() => vi.fn());
 const renameThreadForUserMock = vi.hoisted(() => vi.fn());
 const deleteThreadForUserMock = vi.hoisted(() => vi.fn());
+const upsertThreadsForUserMock = vi.hoisted(() => vi.fn());
 const getRasaUrlForRequestMock = vi.hoisted(() => vi.fn());
 const withRasaAuthMock = vi.hoisted(() => vi.fn((url: string) => url));
 const buildRasaSenderIdMock = vi.hoisted(() => vi.fn());
@@ -19,6 +20,7 @@ vi.mock("@/lib/threadRegistryStore", () => ({
   deleteThreadForUser: deleteThreadForUserMock,
   getThreadForUser: getThreadForUserMock,
   renameThreadForUser: renameThreadForUserMock,
+  upsertThreadsForUser: upsertThreadsForUserMock,
 }));
 
 vi.mock("@/lib/rasaConfig", () => ({
@@ -42,6 +44,8 @@ beforeEach(() => {
   getThreadForUserMock.mockReset();
   renameThreadForUserMock.mockReset();
   deleteThreadForUserMock.mockReset();
+  upsertThreadsForUserMock.mockReset();
+  upsertThreadsForUserMock.mockResolvedValue([]);
   getRasaUrlForRequestMock.mockReset();
   withRasaAuthMock.mockReset();
   withRasaAuthMock.mockImplementation((url: string) => url);

@@ -9,6 +9,10 @@ export type ThreadRecord = {
   updatedAt: string;
 };
 
+type CreateThreadOptions = {
+  id?: number;
+};
+
 type RegistryData = {
   nextId: number;
   threads: ThreadRecord[];
@@ -101,25 +105,106 @@ export async function createThreadForUser(userId: string, name?: string): Promis
     throw new Error("Missing user id");
   }
 
+  return createThreadForUserWithOptions(normalizedUserId, name);
+}
+
+async function createThreadForUserWithOptions(
+  normalizedUserId: string,
+  name?: string,
+  options?: CreateThreadOptions
+): Promise<ThreadRecord> {
+  const explicitId =
+    typeof options?.id === "number" && Number.isFinite(options.id) && options.id > 0
+      ? Math.floor(options.id)
+      : null;
+
   return withWriteLock(async () => {
     const data = await readData();
     const now = new Date().toISOString();
     const threadsForUser = data.threads.filter((thread) => thread.userId === normalizedUserId);
     const safeName = String(name ?? "").trim() || `Conversation ${threadsForUser.length + 1}`;
+    const takenIds = new Set(data.threads.map((thread) => thread.id));
+
+    const threadId = (() => {
+      if (explicitId !== null && !takenIds.has(explicitId)) {
+        return explicitId;
+      }
+
+      let candidate = data.nextId;
+      while (takenIds.has(candidate)) {
+        candidate += 1;
+      }
+      return candidate;
+    })();
 
     const thread: ThreadRecord = {
-      id: data.nextId,
+      id: threadId,
       userId: normalizedUserId,
       name: safeName,
       createdAt: now,
       updatedAt: now,
     };
 
-    data.nextId += 1;
+    data.nextId = Math.max(data.nextId, threadId + 1);
     data.threads.push(thread);
     await writeData(data);
     return thread;
   });
+}
+
+export async function createThreadForUserWithId(userId: string, threadId: number, name?: string): Promise<ThreadRecord> {
+  const normalizedUserId = normalizeUserId(userId);
+  if (!normalizedUserId) {
+    throw new Error("Missing user id");
+  }
+
+  return createThreadForUserWithOptions(normalizedUserId, name, { id: threadId });
+}
+
+export async function upsertThreadsForUser(userId: string, threadIds: number[]): Promise<ThreadRecord[]> {
+  const normalizedUserId = normalizeUserId(userId);
+  if (!normalizedUserId) return [];
+
+  const normalizedIds = Array.from(
+    new Set(
+      threadIds
+        .filter((id) => Number.isFinite(id) && id > 0)
+        .map((id) => Math.floor(id))
+    )
+  );
+
+  if (normalizedIds.length === 0) {
+    return listThreadsForUser(normalizedUserId);
+  }
+
+  await withWriteLock(async () => {
+    const data = await readData();
+    const now = new Date().toISOString();
+
+    let changed = false;
+    for (const threadId of normalizedIds) {
+      const existing = data.threads.find((thread) => thread.userId === normalizedUserId && thread.id === threadId);
+      if (existing) {
+        continue;
+      }
+
+      data.threads.push({
+        id: threadId,
+        userId: normalizedUserId,
+        name: `Conversation ${threadId}`,
+        createdAt: now,
+        updatedAt: now,
+      });
+      data.nextId = Math.max(data.nextId, threadId + 1);
+      changed = true;
+    }
+
+    if (changed) {
+      await writeData(data);
+    }
+  });
+
+  return listThreadsForUser(normalizedUserId);
 }
 
 export async function renameThreadForUser(

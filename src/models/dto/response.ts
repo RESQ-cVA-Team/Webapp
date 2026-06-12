@@ -17,25 +17,115 @@ export interface VisualizationPlanMetricDTO {
   title?: string;
   description?: string;
   metric: string;
-  distribution?: Record<string, unknown> | null;
 }
 
-export interface VisualizationPlanChartDTO {
-  title?: string;
-  description?: string;
-  chart_type?: string;
-  filters?: Record<string, unknown> | null;
-  group_by?: Array<Record<string, unknown>>;
-  metrics?: VisualizationPlanMetricDTO[];
+export interface VisualizationPlanPredicateFilterDTO {
+  op: "predicate";
+  field: string;
+  operator: string;
+  value?: string | number | boolean;
+  values?: Array<string | number | boolean>;
 }
+
+export interface VisualizationPlanNotFilterDTO {
+  op: "not";
+  clause: VisualizationPlanFilterNodeDTO;
+}
+
+export interface VisualizationPlanAndFilterDTO {
+  op: "and";
+  clauses: VisualizationPlanFilterNodeDTO[];
+}
+
+export interface VisualizationPlanOrFilterDTO {
+  op: "or";
+  clauses: VisualizationPlanFilterNodeDTO[];
+}
+
+export type VisualizationPlanFilterNodeDTO =
+  | VisualizationPlanPredicateFilterDTO
+  | VisualizationPlanNotFilterDTO
+  | VisualizationPlanAndFilterDTO
+  | VisualizationPlanOrFilterDTO;
+
+export interface VisualizationPlanTimeXAxisDTO {
+  kind: "time";
+  grain: string;
+  window?: Record<string, unknown>;
+  includePartial?: boolean;
+}
+
+export interface VisualizationPlanCategoryXAxisDTO {
+  kind: "category";
+  groupBy: Record<string, unknown>;
+  order?: string;
+}
+
+export interface VisualizationPlanNumericMetricXAxisDTO {
+  kind: "numeric_metric";
+  metric: string;
+  bins?: number;
+  minValue?: number;
+  maxValue?: number;
+}
+
+export type VisualizationPlanXAxisDTO =
+  | VisualizationPlanTimeXAxisDTO
+  | VisualizationPlanCategoryXAxisDTO
+  | VisualizationPlanNumericMetricXAxisDTO;
+
+export interface VisualizationPlanMetricValueAxisDTO {
+  kind: "metric_value";
+  statistic?: string;
+  unit?: string;
+}
+
+export interface VisualizationPlanCountAxisDTO {
+  kind: "count";
+}
+
+export type VisualizationPlanYAxisDTO =
+  | VisualizationPlanMetricValueAxisDTO
+  | VisualizationPlanCountAxisDTO;
+
+export interface VisualizationPlanLineSeriesDTO {
+  metric: string;
+  xAxis: string;
+  yAxis: string;
+  label?: string;
+  filters?: VisualizationPlanFilterNodeDTO;
+  dataOrigin?: Record<string, unknown>;
+  originScope?: Record<string, unknown>;
+}
+
+export interface VisualizationPlanLineChartDTO {
+  title?: string;
+  chartType: "LINE";
+  xAxes: Record<string, VisualizationPlanXAxisDTO>;
+  yAxes: Record<string, VisualizationPlanYAxisDTO>;
+  series: VisualizationPlanLineSeriesDTO[];
+  filters?: VisualizationPlanFilterNodeDTO;
+}
+
+export interface VisualizationPlanHistogramChartDTO {
+  title?: string;
+  chartType: "HISTOGRAM";
+  xAxis: VisualizationPlanNumericMetricXAxisDTO;
+  yAxis: VisualizationPlanCountAxisDTO;
+  filters?: VisualizationPlanFilterNodeDTO;
+  dataOrigin?: Record<string, unknown>;
+  originScope?: Record<string, unknown>;
+}
+
+export type VisualizationPlanChartDTO =
+  | VisualizationPlanLineChartDTO
+  | VisualizationPlanHistogramChartDTO;
 
 export interface VisualizationPlanStatisticalTestDTO {
-  title?: string;
-  description?: string;
-  test_type?: string;
-  metrics?: VisualizationPlanMetricDTO[];
+  test_type: string;
+  metrics: VisualizationPlanMetricDTO[];
   group_by?: Array<Record<string, unknown>>;
-  filters?: Record<string, unknown> | null;
+  filters?: VisualizationPlanFilterNodeDTO;
 }
 
 export interface VisualizationPlanMetadataDTO {
@@ -53,8 +143,9 @@ export interface VisualizationPlanMetadataDTO {
 }
 
 export interface VisualizationPlanDTO {
+  schemaVersion: 2;
   charts?: VisualizationPlanChartDTO[];
-  statistical_tests?: VisualizationPlanStatisticalTestDTO[];
+  statisticalTests?: VisualizationPlanStatisticalTestDTO[];
   metadata?: VisualizationPlanMetadataDTO;
 }
 

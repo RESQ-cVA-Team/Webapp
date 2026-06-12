@@ -3,7 +3,7 @@ import { cookies, headers } from "next/headers";
 import { auth } from "@/auth";
 import { getRasaUrlForRequest, withRasaAuth } from "@/lib/rasaConfig";
 import { buildRasaSenderId } from "@/lib/rasaSender";
-import { deleteThreadForUser, getThreadForUser, renameThreadForUser } from "@/lib/threadRegistryStore";
+import { deleteThreadForUser, getThreadForUser, renameThreadForUser, upsertThreadsForUser } from "@/lib/threadRegistryStore";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -41,6 +41,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const payload = body && typeof body === "object" ? (body as Record<string, unknown>) : {};
   const name = typeof payload.name === "string" ? payload.name : "";
 
+  await upsertThreadsForUser(userId, [threadId]);
+
   const updated = await renameThreadForUser(userId, threadId, name);
   if (!updated) {
     return NextResponse.json({ message: "Thread not found" }, { status: 404 });
@@ -61,6 +63,8 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   if (!threadId) {
     return NextResponse.json({ message: "Invalid thread id" }, { status: 400 });
   }
+
+  await upsertThreadsForUser(userId, [threadId]);
 
   const existingThread = await getThreadForUser(userId, threadId);
   if (!existingThread) {
