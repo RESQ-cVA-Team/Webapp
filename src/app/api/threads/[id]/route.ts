@@ -18,6 +18,64 @@ function parseThreadId(raw: string): number | null {
   return parsed;
 }
 
+async function postIndexEvent(
+  userId: string,
+  threadId: number,
+  action: "create" | "rename" | "delete",
+  name: string = ""
+): Promise<boolean> {
+  const rasa_url = process.env.RASA_URL_LIST?.trim();
+  if (!rasa_url) {
+    return false;
+  }
+
+  const cookieStore = await cookies();
+  const headerStore = await headers();
+  const cookiesMap = new Map(cookieStore.getAll().map((cookie) => [cookie.name, cookie.value]));
+  const apiUrl = getRasaUrlForRequest(headerStore, cookiesMap);
+  if (!apiUrl) {
+    return false;
+  }
+
+  try {
+    const response = await fetch(
+      withRasaAuth(`${apiUrl}/threads/${encodeURIComponent(userId)}/index-event`),
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          thread_id: threadId,
+          name,
+          action,
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      console.warn("Failed to post index event to Rasa", {
+        userId,
+        threadId,
+        action,
+        status: response.status,
+        statusText: response.statusText,
+      });
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.warn("Failed to post index event to Rasa", {
+      userId,
+      threadId,
+      action,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return false;
+  }
+}
+
 export async function PATCH(req: NextRequest, { params }: Params) {
   const session = await auth();
   const userId = session?.user?.id ? String(session.user.id) : null;
@@ -47,6 +105,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (!updated) {
     return NextResponse.json({ message: "Thread not found" }, { status: 404 });
   }
+
+  // Post rename event to Rasa index
+  await postIndexEvent(userId, threadId, "rename", name);
 
   return NextResponse.json(updated);
 }
@@ -83,22 +144,13 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   if (apiUrl) {
     const senderId = buildRasaSenderId(userId, threadId);
     try {
-      const response = await fetch(withRasaAuth(`${apiUrl}/conversations/${senderId}/tracker/events`), {
+      await fetch(withRasaAuth(`${apiUrl}/conversations/${senderId}/tracker/events`), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ event: "restart" }),
       });
-
-      if (!response.ok) {
-        console.warn("Rasa tracker reset returned non-OK during thread deletion", {
-          apiUrl,
-          senderId,
-          status: response.status,
-          statusText: response.statusText,
-        });
-      }
     } catch (error) {
       console.warn("Failed to reset Rasa tracker during thread deletion", {
         apiUrl,
@@ -106,6 +158,9 @@ export async function DELETE(req: NextRequest, { params }: Params) {
         error,
       });
     }
+
+    // Post delete event to Rasa index
+    await postIndexEvent(userId, threadId, "delete", "");
   }
 
   return NextResponse.json({ ok: true, id: existingThread.id });

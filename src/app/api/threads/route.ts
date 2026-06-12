@@ -68,6 +68,113 @@ function collectSenderIds(value: unknown): string[] {
     .filter(Boolean);
 }
 
+async function listRasaThreadsByUser(userId: string): Promise<{ id: number; name: string; created_at: string; updated_at: string }[]> {
+  if (!process.env.RASA_URL_LIST?.trim()) {
+    return [];
+  }
+
+  const cookieStore = await cookies();
+  const headerStore = await headers();
+  const cookiesMap = new Map(cookieStore.getAll().map((cookie) => [cookie.name, cookie.value]));
+  const apiUrl = getRasaUrlForRequest(headerStore, cookiesMap);
+  if (!apiUrl) {
+    return [];
+  }
+
+  try {
+    const response = await fetch(withRasaAuth(`${apiUrl}/threads/by-user/${encodeURIComponent(userId)}`), {
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      console.warn("Failed to fetch thread index from Rasa", {
+        userId,
+        status: response.status,
+        statusText: response.statusText,
+      });
+      return [];
+    }
+
+    const contentType = response.headers.get("content-type") || "";
+    if (!contentType.toLowerCase().includes("application/json")) {
+      return [];
+    }
+
+    const payload = await response.json();
+    const threads = payload.threads || [];
+    
+    return threads.map((thread: any) => ({
+      id: thread.id,
+      name: thread.name,
+      created_at: thread.created_at,
+      updated_at: thread.updated_at,
+    }));
+  } catch (error) {
+    console.warn("Failed to discover Rasa thread index for user", {
+      userId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return [];
+  }
+}
+
+async function postIndexEvent(
+  userId: string,
+  threadId: number,
+  action: "create" | "rename" | "delete",
+  name: string = ""
+): Promise<boolean> {
+  if (!process.env.RASA_URL_LIST?.trim()) {
+    return false;
+  }
+
+  const cookieStore = await cookies();
+  const headerStore = await headers();
+  const cookiesMap = new Map(cookieStore.getAll().map((cookie) => [cookie.name, cookie.value]));
+  const apiUrl = getRasaUrlForRequest(headerStore, cookiesMap);
+  if (!apiUrl) {
+    return false;
+  }
+
+  try {
+    const response = await fetch(
+      withRasaAuth(`${apiUrl}/threads/${encodeURIComponent(userId)}/index-event`),
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          thread_id: threadId,
+          name,
+          action,
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      console.warn("Failed to post index event to Rasa", {
+        userId,
+        threadId,
+        action,
+        status: response.status,
+        statusText: response.statusText,
+      });
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.warn("Failed to post index event to Rasa", {
+      userId,
+      threadId,
+      action,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return false;
+  }
+}
+
 async function listRasaThreadIdsForUser(userId: string): Promise<number[]> {
   if (!process.env.RASA_URL_LIST?.trim()) {
     return [];
@@ -121,12 +228,25 @@ export async function GET() {
     return new NextResponse("Unauthorized", { status: 401 });
   }
 
-  // Keep local names/ordering metadata, but discover canonical thread IDs from Rasa conversations.
-  const rasaThreadIds = await listRasaThreadIdsForUser(userId);
-  if (rasaThreadIds.length > 0) {
-    await upsertThreadsForUser(userId, rasaThreadIds);
+  // Fetch thread list from Rasa index endpoint
+  const rasaThreads = await listRasaThreadsByUser(userId);
+  
+  // If we got threads from Rasa, upsert them to local store for metadata and return them
+  if (rasaThreads.length > 0) {
+    const threadIds = rasaThreads.map((t) => t.id);
+    await upsertThreadsForUser(userId, threadIds);
+    
+    return NextResponse.json({
+      results: rasaThreads.map((t) => ({
+        id: t.id,
+        name: t.name,
+        created_at: t.created_at,
+        updated_at: t.updated_at,
+      })),
+    });
   }
 
+  // If no threads from Rasa, fall back to local store
   const threads = await listThreadsForUser(userId);
   return NextResponse.json({ results: threads });
 }
@@ -148,15 +268,15 @@ export async function POST(req: NextRequest) {
   const payload = body && typeof body === "object" ? (body as Record<string, unknown>) : {};
   const name = typeof payload.name === "string" ? payload.name : undefined;
 
-  const [localThreads, rasaThreadIds] = await Promise.all([
+  const [localThreads, rasaThreads] = await Promise.all([
     listThreadsForUser(userId),
-    listRasaThreadIdsForUser(userId),
+    listRasaThreadsByUser(userId),
   ]);
 
   const maxExistingThreadId = Math.max(
     0,
     ...localThreads.map((thread) => thread.id),
-    ...rasaThreadIds
+    ...rasaThreads.map((thread) => thread.id)
   );
   const nextThreadId = maxExistingThreadId + 1;
 
@@ -164,6 +284,7 @@ export async function POST(req: NextRequest) {
     ? await createThreadForUserWithId(userId, nextThreadId, name)
     : await createThreadForUser(userId, name);
 
+  // Bootstrap Rasa tracker
   const cookieStore = await cookies();
   const headerStore = await headers();
   const cookiesMap = new Map(cookieStore.getAll().map((cookie) => [cookie.name, cookie.value]));
@@ -171,22 +292,13 @@ export async function POST(req: NextRequest) {
   if (apiUrl) {
     const senderId = buildRasaSenderId(userId, thread.id);
     try {
-      const response = await fetch(withRasaAuth(`${apiUrl}/conversations/${senderId}/tracker/events`), {
+      await fetch(withRasaAuth(`${apiUrl}/conversations/${senderId}/tracker/events`), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ event: "restart" }),
       });
-
-      if (!response.ok) {
-        console.warn("Rasa tracker bootstrap returned non-OK during thread creation", {
-          apiUrl,
-          senderId,
-          status: response.status,
-          statusText: response.statusText,
-        });
-      }
     } catch (error) {
       console.warn("Failed to bootstrap Rasa tracker during thread creation", {
         apiUrl,
@@ -194,6 +306,9 @@ export async function POST(req: NextRequest) {
         error: error instanceof Error ? error.message : String(error),
       });
     }
+
+    // Post index event to Rasa
+    await postIndexEvent(userId, thread.id, "create", name || "");
   }
 
   return NextResponse.json(thread, { status: 201 });
