@@ -531,7 +531,7 @@ export default function ChatWindow() {
   }, [addMessage, currentThreadId]);
 
   useEffect(() => {
-    fetch("/api/autocomplete")
+    fetch(`/api/autocomplete?language=${language}`)
       .then((res) => res.json())
       .then((data: unknown) => {
         if (!Array.isArray(data)) {
@@ -543,7 +543,7 @@ export default function ChatWindow() {
         );
       })
       .catch((err) => console.error("Failed to fetch autocomplete values:", err));
-  }, []);
+  }, [language]);
 
   const sendMessage = async (msg: string) => {
   if (!currentThreadId) return;
