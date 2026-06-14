@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { SquarePen, Search, X, Pencil } from "lucide-react";
 import { ArrowLeftToLine, PanelLeftIcon } from "lucide-react"
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
@@ -45,12 +45,17 @@ export function SideMenu() {
   const [loading, setLoading] = useState(false);
 
   const { currentThreadId, setCurrentThreadId } = useThread();
+  const currentThreadIdRef = useRef<number | null>(currentThreadId);
+
+  useEffect(() => {
+    currentThreadIdRef.current = currentThreadId;
+  }, [currentThreadId]);
 
   const deleteThread = async (id:number) => {
     try {
       const res = await fetch(`/api/threads/${id}`, { method: "DELETE" });
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
         throw new Error(data?.message || "Failed to delete thread");
       }
 
@@ -112,7 +117,7 @@ export function SideMenu() {
   const getThreads = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/threads', { method: 'GET' });
+      const res = await fetch('/api/threads', { method: 'GET', cache: 'no-store' });
 
       if (!res.ok) {
         if (isAuthStatus(res.status)) {
@@ -127,10 +132,6 @@ export function SideMenu() {
       const data = await res.json();
 
       const newThreads = (data.results || []);
-      // if (newThreads.length === 0) {
-      //   //await postThread(`${t('threads.name.default')}1`);
-      //   return;
-      // }
       if (newThreads.length === 0) {
         setThreads([]);
         setCurrentThreadId(null);
@@ -138,8 +139,9 @@ export function SideMenu() {
       }
 
       setThreads(newThreads);
-      const hasCurrentThread = currentThreadId !== null && newThreads.some((thread: Thread) => thread.id === currentThreadId);
-      if ((!hasCurrentThread || currentThreadId === null) && newThreads.length > 0) {
+      const activeThreadId = currentThreadIdRef.current;
+      const hasCurrentThread = activeThreadId !== null && newThreads.some((thread: Thread) => thread.id === activeThreadId);
+      if ((!hasCurrentThread || activeThreadId === null) && newThreads.length > 0) {
         setCurrentThreadId(newThreads[0].id);
       }
     } catch (err) {
@@ -147,7 +149,7 @@ export function SideMenu() {
     } finally {
       setLoading(false);
     }
-  }, [currentThreadId, setCurrentThreadId]);
+  }, [setCurrentThreadId]);
 
 
   useEffect(() => {

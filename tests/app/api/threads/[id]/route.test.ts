@@ -2,10 +2,6 @@ import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const authMock = vi.hoisted(() => vi.fn());
-const getThreadForUserMock = vi.hoisted(() => vi.fn());
-const renameThreadForUserMock = vi.hoisted(() => vi.fn());
-const deleteThreadForUserMock = vi.hoisted(() => vi.fn());
-const upsertThreadsForUserMock = vi.hoisted(() => vi.fn());
 const getRasaUrlForRequestMock = vi.hoisted(() => vi.fn());
 const withRasaAuthMock = vi.hoisted(() => vi.fn((url: string) => url));
 const buildRasaSenderIdMock = vi.hoisted(() => vi.fn());
@@ -14,13 +10,6 @@ const headersMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/auth", () => ({
   auth: authMock,
-}));
-
-vi.mock("@/lib/threadRegistryStore", () => ({
-  deleteThreadForUser: deleteThreadForUserMock,
-  getThreadForUser: getThreadForUserMock,
-  renameThreadForUser: renameThreadForUserMock,
-  upsertThreadsForUser: upsertThreadsForUserMock,
 }));
 
 vi.mock("@/lib/rasaConfig", () => ({
@@ -41,11 +30,6 @@ import { DELETE, PATCH } from "@/app/api/threads/[id]/route";
 
 beforeEach(() => {
   authMock.mockReset();
-  getThreadForUserMock.mockReset();
-  renameThreadForUserMock.mockReset();
-  deleteThreadForUserMock.mockReset();
-  upsertThreadsForUserMock.mockReset();
-  upsertThreadsForUserMock.mockResolvedValue([]);
   getRasaUrlForRequestMock.mockReset();
   withRasaAuthMock.mockReset();
   withRasaAuthMock.mockImplementation((url: string) => url);
@@ -85,7 +69,28 @@ describe("PATCH /api/threads/[id]", () => {
 
   it("renames the thread for the authenticated user", async () => {
     authMock.mockResolvedValue({ user: { id: "user-1" } });
-    renameThreadForUserMock.mockResolvedValue({ id: 1, name: "Renamed thread" });
+    cookiesMock.mockResolvedValue({ getAll: () => [] });
+    headersMock.mockResolvedValue(new Headers());
+    getRasaUrlForRequestMock.mockReturnValue("https://rasa.example.com");
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            threads: [{ id: 1, name: "Thread", created_at: "2026-06-03T00:00:00.000Z", updated_at: "2026-06-03T00:00:00.000Z" }],
+          }),
+          { status: 200, headers: { "content-type": "application/json" } }
+        )
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 201 }))
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            threads: [{ id: 1, name: "Renamed thread", created_at: "2026-06-03T00:00:00.000Z", updated_at: "2026-06-04T00:00:00.000Z" }],
+          }),
+          { status: 200, headers: { "content-type": "application/json" } }
+        )
+      ) as never;
 
     const response = await PATCH(
       new NextRequest("http://localhost/api/threads/1", {
@@ -96,8 +101,12 @@ describe("PATCH /api/threads/[id]", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ id: 1, name: "Renamed thread" });
-    expect(renameThreadForUserMock).toHaveBeenCalledWith("user-1", 1, "Renamed thread");
+    expect(await response.json()).toEqual({
+      id: 1,
+      name: "Renamed thread",
+      created_at: "2026-06-03T00:00:00.000Z",
+      updated_at: "2026-06-04T00:00:00.000Z",
+    });
   });
 });
 
@@ -115,7 +124,12 @@ describe("DELETE /api/threads/[id]", () => {
 
   it("returns not found when the thread does not exist", async () => {
     authMock.mockResolvedValue({ user: { id: "user-1" } });
-    getThreadForUserMock.mockResolvedValue(null);
+    cookiesMock.mockResolvedValue({ getAll: () => [] });
+    headersMock.mockResolvedValue(new Headers());
+    getRasaUrlForRequestMock.mockReturnValue("https://rasa.example.com");
+    global.fetch = vi.fn(async () =>
+      new Response(JSON.stringify({ threads: [] }), { status: 200, headers: { "content-type": "application/json" } })
+    ) as never;
 
     const response = await DELETE(
       new NextRequest("http://localhost/api/threads/1", { method: "DELETE" }),
@@ -128,12 +142,22 @@ describe("DELETE /api/threads/[id]", () => {
 
   it("resets the Rasa tracker after deleting a thread", async () => {
     authMock.mockResolvedValue({ user: { id: "user-1" } });
-    getThreadForUserMock.mockResolvedValue({ id: 1, userId: "user-1", name: "Thread", createdAt: "2026-06-03T00:00:00.000Z", updatedAt: "2026-06-03T00:00:00.000Z" });
-    deleteThreadForUserMock.mockResolvedValue(true);
-    getRasaUrlForRequestMock.mockReturnValue("https://rasa.example.com");
-    buildRasaSenderIdMock.mockReturnValue("sender-1");
     cookiesMock.mockResolvedValue({ getAll: () => [] });
     headersMock.mockResolvedValue(new Headers());
+    getRasaUrlForRequestMock.mockReturnValue("https://rasa.example.com");
+    buildRasaSenderIdMock.mockReturnValue("sender-1");
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            threads: [{ id: 1, name: "Thread", created_at: "2026-06-03T00:00:00.000Z", updated_at: "2026-06-03T00:00:00.000Z" }],
+          }),
+          { status: 200, headers: { "content-type": "application/json" } }
+        )
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 200 }))
+      .mockResolvedValueOnce(new Response(null, { status: 201 })) as never;
 
     const response = await DELETE(
       new NextRequest("http://localhost/api/threads/1", { method: "DELETE" }),

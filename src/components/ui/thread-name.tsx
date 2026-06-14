@@ -12,7 +12,7 @@ export function ThreadName() {
     const getCurrentThreadName = React.useCallback(async () => {
       if (!currentThreadId) return "No Thread Selected";
       try {
-        const res = await fetch(`/api/threads`);
+        const res = await fetch(`/api/threads`, { cache: "no-store" });
         if (!res.ok) {
           if (res.status === 401 || res.status === 403) {
             return "No Thread Selected";

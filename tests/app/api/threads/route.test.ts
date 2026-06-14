@@ -2,10 +2,6 @@ import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const authMock = vi.hoisted(() => vi.fn());
-const listThreadsForUserMock = vi.hoisted(() => vi.fn());
-const createThreadForUserMock = vi.hoisted(() => vi.fn());
-const createThreadForUserWithIdMock = vi.hoisted(() => vi.fn());
-const upsertThreadsForUserMock = vi.hoisted(() => vi.fn());
 const getRasaUrlForRequestMock = vi.hoisted(() => vi.fn());
 const withRasaAuthMock = vi.hoisted(() => vi.fn((url: string) => url));
 const buildRasaSenderIdMock = vi.hoisted(() => vi.fn());
@@ -14,13 +10,6 @@ const headersMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/auth", () => ({
   auth: authMock,
-}));
-
-vi.mock("@/lib/threadRegistryStore", () => ({
-  createThreadForUser: createThreadForUserMock,
-  createThreadForUserWithId: createThreadForUserWithIdMock,
-  listThreadsForUser: listThreadsForUserMock,
-  upsertThreadsForUser: upsertThreadsForUserMock,
 }));
 
 vi.mock("@/lib/rasaConfig", () => ({
@@ -41,10 +30,6 @@ import { GET, POST } from "@/app/api/threads/route";
 
 beforeEach(() => {
   authMock.mockReset();
-  listThreadsForUserMock.mockReset();
-  createThreadForUserMock.mockReset();
-  createThreadForUserWithIdMock.mockReset();
-  upsertThreadsForUserMock.mockReset();
   getRasaUrlForRequestMock.mockReset();
   withRasaAuthMock.mockReset();
   withRasaAuthMock.mockImplementation((url: string) => url);
@@ -71,13 +56,24 @@ describe("GET /api/threads", () => {
 
   it("lists threads for the authenticated user", async () => {
     authMock.mockResolvedValue({ user: { id: "user-1" } });
-    listThreadsForUserMock.mockResolvedValue([{ id: 1, name: "First thread" }]);
+    cookiesMock.mockResolvedValue({ getAll: () => [] });
+    headersMock.mockResolvedValue(new Headers());
+    getRasaUrlForRequestMock.mockReturnValue("https://rasa.example.com");
+    global.fetch = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          threads: [{ id: 1, name: "First thread", created_at: "2026-06-01T00:00:00.000Z", updated_at: "2026-06-01T00:00:00.000Z" }],
+        }),
+        { status: 200, headers: { "content-type": "application/json" } }
+      )
+    ) as never;
 
     const response = await GET();
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ results: [{ id: 1, name: "First thread" }] });
-    expect(listThreadsForUserMock).toHaveBeenCalledWith("user-1");
+    expect(await response.json()).toEqual({
+      results: [{ id: 1, name: "First thread", created_at: "2026-06-01T00:00:00.000Z", updated_at: "2026-06-01T00:00:00.000Z" }],
+    });
   });
 });
 
@@ -92,11 +88,33 @@ describe("POST /api/threads", () => {
 
   it("creates a thread with the provided name", async () => {
     authMock.mockResolvedValue({ user: { id: "user-1" } });
-    listThreadsForUserMock.mockResolvedValue([{ id: 1, name: "First thread" }]);
-    createThreadForUserWithIdMock.mockResolvedValue({ id: 2, name: "My thread" });
     cookiesMock.mockResolvedValue({ getAll: () => [] });
     headersMock.mockResolvedValue(new Headers());
-    getRasaUrlForRequestMock.mockReturnValue(null);
+    getRasaUrlForRequestMock.mockReturnValue("https://rasa.example.com");
+    buildRasaSenderIdMock.mockReturnValue("user-1:thread:2");
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            threads: [{ id: 1, name: "First thread", created_at: "2026-06-01T00:00:00.000Z", updated_at: "2026-06-01T00:00:00.000Z" }],
+          }),
+          { status: 200, headers: { "content-type": "application/json" } }
+        )
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 200 }))
+      .mockResolvedValueOnce(new Response(null, { status: 201 }))
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            threads: [
+              { id: 1, name: "First thread", created_at: "2026-06-01T00:00:00.000Z", updated_at: "2026-06-01T00:00:00.000Z" },
+              { id: 2, name: "My thread", created_at: "2026-06-02T00:00:00.000Z", updated_at: "2026-06-02T00:00:00.000Z" },
+            ],
+          }),
+          { status: 200, headers: { "content-type": "application/json" } }
+        )
+      ) as never;
 
     const request = new NextRequest("http://localhost/api/threads", {
       method: "POST",
@@ -106,7 +124,11 @@ describe("POST /api/threads", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(201);
-    expect(await response.json()).toEqual({ id: 2, name: "My thread" });
-    expect(createThreadForUserWithIdMock).toHaveBeenCalledWith("user-1", 2, "My thread");
+    expect(await response.json()).toEqual({
+      id: 2,
+      name: "My thread",
+      created_at: "2026-06-02T00:00:00.000Z",
+      updated_at: "2026-06-02T00:00:00.000Z",
+    });
   });
 });

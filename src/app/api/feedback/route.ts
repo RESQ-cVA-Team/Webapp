@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { headers as nextHeaders } from "next/headers";
-import { getThreadForUser } from "@/lib/threadRegistryStore";
 import { auth } from "@/auth";
 import { createFeedbackReporterKey, getFeedbackIdentityFromSession, getFeedbackReporterAliases } from "@/lib/feedbackAccess";
 import {
@@ -86,8 +85,6 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const thread = await getThreadForUser(identity.userId, threadId);
-
   const captureConversationContext = shouldCaptureFeedbackConversationContext();
   const headerStore = await nextHeaders();
 
@@ -128,7 +125,7 @@ export async function POST(req: NextRequest) {
       userName: null,
       userAliases: getFeedbackReporterAliases(identity.userId),
       threadId,
-      threadName: thread?.name ?? null,
+      threadName: null,
       messageKey,
       messageText,
       rating,
@@ -149,7 +146,7 @@ export async function POST(req: NextRequest) {
         darkMode: req.cookies.get("dark")?.value === "true",
         pathname: req.nextUrl.pathname,
         submittedAt: new Date().toISOString(),
-        threadRegistryMissing: thread == null,
+        threadRegistryMissing: false,
       },
       serviceSnapshots,
     });

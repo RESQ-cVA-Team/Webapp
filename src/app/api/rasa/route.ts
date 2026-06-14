@@ -5,7 +5,6 @@ import { fetchRasaTrackerEvents, mapRasaTrackerEvents } from "@/lib/rasaHistory"
 import { putUserAccessToken } from "@/lib/userTokenVault";
 import { buildRasaSenderId } from "@/lib/rasaSender";
 import { publishCommittedHistoryItems, setCommittedCursorFloor } from "@/lib/sseBus";
-import { touchThreadForUser } from "@/lib/threadRegistryStore";
 import {
   createTraceErrorResponse,
   createTraceLogContext,
@@ -63,18 +62,6 @@ export async function POST(req: NextRequest) {
     const rawThreadId = body?.threadId;
     const threadId = typeof rawThreadId === "number" && Number.isFinite(rawThreadId) ? rawThreadId : null;
     const senderId = buildRasaSenderId(userSub, threadId);
-
-    if (typeof threadId === "number") {
-      try {
-        await touchThreadForUser(userSub, threadId);
-      } catch (error) {
-        console.warn("[rasa] Failed to touch thread before forwarding chat request", createTraceLogContext(traceId, {
-          senderId,
-          threadId,
-          error: error instanceof Error ? error.message : String(error),
-        }));
-      }
-    }
 
     const tokenPayload = {
       accessToken: String(session.accessToken),

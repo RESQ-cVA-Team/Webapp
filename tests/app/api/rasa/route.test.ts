@@ -8,7 +8,6 @@ const putUserAccessTokenMock = vi.hoisted(() => vi.fn());
 const buildRasaSenderIdMock = vi.hoisted(() => vi.fn(() => "sender-1"));
 const setCommittedCursorFloorMock = vi.hoisted(() => vi.fn());
 const publishCommittedHistoryItemsMock = vi.hoisted(() => vi.fn(() => 2));
-const touchThreadForUserMock = vi.hoisted(() => vi.fn());
 const fetchRasaTrackerEventsMock = vi.hoisted(() => vi.fn());
 const mapRasaTrackerEventsMock = vi.hoisted(() => vi.fn(() => []));
 
@@ -34,10 +33,6 @@ vi.mock("@/lib/sseBus", () => ({
   publishCommittedHistoryItems: publishCommittedHistoryItemsMock,
 }));
 
-vi.mock("@/lib/threadRegistryStore", () => ({
-  touchThreadForUser: touchThreadForUserMock,
-}));
-
 vi.mock("@/lib/rasaHistory", () => ({
   fetchRasaTrackerEvents: fetchRasaTrackerEventsMock,
   mapRasaTrackerEvents: mapRasaTrackerEventsMock,
@@ -53,7 +48,6 @@ beforeEach(() => {
   buildRasaSenderIdMock.mockReset();
   setCommittedCursorFloorMock.mockReset();
   publishCommittedHistoryItemsMock.mockReset();
-  touchThreadForUserMock.mockReset();
   fetchRasaTrackerEventsMock.mockReset();
   mapRasaTrackerEventsMock.mockReset();
 
