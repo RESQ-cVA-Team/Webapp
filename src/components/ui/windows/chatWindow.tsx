@@ -17,6 +17,7 @@ import { WaveAsset } from "../assets/wave-asset";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useThread } from "@/components/ThreadContext";
 import { ThreadName } from "../thread-name";
+import InfoAlertWindow from "./infoAlertWindow";
 
 type Message = {
   id: string;
@@ -254,6 +255,7 @@ async function fetchThreadHistory(
 export default function ChatWindow() {
   const { currentThreadId } = useThread();
   const [messages, setMessages] = useState<Message[]>([]);
+  const [autocompleteItems, setAutocompleteItems] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [pendingRequests, setPendingRequests] = useState(0);
   const [activeLongActionJobCount, setActiveLongActionJobCount] = useState(0);
@@ -265,6 +267,42 @@ export default function ChatWindow() {
   const isChatDisabled = currentThreadId === null;
   const isWaitingForBot = pendingRequests > 0 || activeLongActionJobCount > 0;
   const showSkeleton = loading && messages.length === 0;
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function fetchAutocompleteItems() {
+      try {
+        const res = await fetch(`/api/autocomplete?language=${encodeURIComponent(language)}`, {
+          credentials: "include",
+          cache: "no-store",
+        });
+
+        if (!res.ok) {
+          if (!cancelled) {
+            setAutocompleteItems([]);
+          }
+          return;
+        }
+
+        const data = await res.json();
+        if (!cancelled) {
+          setAutocompleteItems(Array.isArray(data) ? data.filter((item): item is string => typeof item === "string") : []);
+        }
+      } catch (err) {
+        console.error("Failed to fetch autocomplete items", err);
+        if (!cancelled) {
+          setAutocompleteItems([]);
+        }
+      }
+    }
+
+    void fetchAutocompleteItems();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [language]);
 
   const emitPlanDebugMessage = useCallback((plan: VisualizationPlanMessageDTO, traceId: string | null) => {
     const planMessage = createPlanDebugEntry(plan, traceId, seenPlanMessageKeysRef.current);
@@ -587,6 +625,7 @@ export default function ChatWindow() {
             <ThreadName  />
             {/* <p className="text-white font-semibold">{t('robot.intro')}</p><RobotIcon className="w-6 h-6 min-h-6" /> */}
           </div>
+          <InfoAlertWindow />
         </div>
         <WaveAsset className=" absolute w-full max-h-15 min-h-10 fill-gradient-to-r from-primary to-accent align-self bg-transparent z-1 p-0 pointer-events-none" />
       </div>
@@ -611,6 +650,7 @@ export default function ChatWindow() {
           loading={isWaitingForBot}
           disabled={isChatDisabled}
           placeholder={isChatDisabled ? t('chat.disabledPlaceholder') : t('chat.placeholder')}
+          autocompleteItems={autocompleteItems}
         />
       </div>
     </div>

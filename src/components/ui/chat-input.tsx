@@ -7,13 +7,25 @@ import { Loader2 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import "@/i18n"
 import { SendIcon } from "./icons/send-icon"
-import { extractAutocompleteTarget } from "@/lib/autocomplete-utils"
+import { extractAutocompleteTargets } from "@/lib/autocomplete-utils"
 
-const MAX_AUTOCOMPLETE_SCORE = 220
+const MAX_AUTOCOMPLETE_SCORE = 520
+
+function normalizeAutocompleteText(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim()
+    .replace(/\s+/g, " ")
+}
 
 function getAutocompleteScore(candidate: string, query: string): number {
-  const normalizedCandidate = candidate.toLowerCase()
-  const normalizedQuery = query.toLowerCase()
+  const normalizedCandidate = normalizeAutocompleteText(candidate)
+  const normalizedQuery = normalizeAutocompleteText(query)
+
+  if (!normalizedCandidate || !normalizedQuery) {
+    return Number.POSITIVE_INFINITY
+  }
 
   if (normalizedCandidate === normalizedQuery) {
     return Number.POSITIVE_INFINITY
@@ -38,7 +50,7 @@ function getAutocompleteScore(candidate: string, query: string): number {
     if (char === normalizedQuery[queryIndex]) {
       queryIndex += 1
       if (queryIndex === normalizedQuery.length) {
-        return 400 + normalizedCandidate.length
+        return 300 + normalizedCandidate.length
       }
     }
   }
@@ -79,18 +91,47 @@ export function ChatInput({
       return []
     }
 
-    const target = extractAutocompleteTarget(message)
-    if (!target || target.length < 3) {
+    const targets = extractAutocompleteTargets(message)
+      .map((target) => target.toLowerCase())
+      .filter((target) => target.length >= 2)
+
+    if (targets.length === 0) {
       return []
     }
 
     return autocompleteItems
-      .map((item) => ({ item, score: getAutocompleteScore(item, target) }))
+      .map((item) => {
+        const score = Math.min(
+          ...targets.map((target) => getAutocompleteScore(item, target))
+        )
+        return { item, score }
+      })
       .filter((entry) => Number.isFinite(entry.score) && entry.score <= MAX_AUTOCOMPLETE_SCORE)
       .sort((left, right) => left.score - right.score || left.item.localeCompare(right.item))
       .map((entry) => entry.item)
       .slice(0, 6)
   }, [autocompleteItems, message])
+
+  const getMatchedTargetSuffix = React.useCallback((input: string): string | null => {
+    const trimmed = input.replace(/\s+$/, "")
+    if (!trimmed) {
+      return null
+    }
+
+    const lowerTrimmed = trimmed.toLowerCase()
+    const targets = extractAutocompleteTargets(trimmed)
+      .map((target) => target.trim())
+      .filter((target) => target.length > 0)
+      .sort((left, right) => right.length - left.length)
+
+    for (const target of targets) {
+      if (lowerTrimmed.endsWith(target.toLowerCase())) {
+        return target
+      }
+    }
+
+    return null
+  }, [])
 
   React.useEffect(() => {
     const textarea = textareaRef.current
@@ -113,19 +154,25 @@ export function ChatInput({
         return `${suggestion} `
       }
 
+      const matchedTarget = getMatchedTargetSuffix(withoutTrailingWhitespace)
+      if (matchedTarget) {
+        const startIndex = withoutTrailingWhitespace.length - matchedTarget.length
+        const prefix = withoutTrailingWhitespace.slice(0, startIndex)
+        return `${prefix}${suggestion} `
+      }
+
       const activeTokenMatch = withoutTrailingWhitespace.match(/\S+$/)
       if (!activeTokenMatch || activeTokenMatch.index === undefined) {
         return `${withoutTrailingWhitespace}${suggestion} `
       }
 
-      const prefix = withoutTrailingWhitespace.slice(0, activeTokenMatch.index)
-      return `${prefix}${suggestion} `
+      return `${withoutTrailingWhitespace.slice(0, activeTokenMatch.index)}${suggestion} `
     })
 
     requestAnimationFrame(() => {
       textareaRef.current?.focus()
     })
-  }, [])
+  }, [getMatchedTargetSuffix])
 
   const handleSubmit = async () => {
     const trimmed = message.trim()
@@ -158,7 +205,7 @@ export function ChatInput({
       return
     }
 
-    if (suggestions.length > 0 && (e.key === "Tab" || (e.key === "Enter" && selectedSuggestionIndex >= 0))) {
+    if (suggestions.length > 0 && e.key === "Tab") {
       e.preventDefault()
       applySuggestion(suggestions[selectedSuggestionIndex] ?? suggestions[0])
       return
