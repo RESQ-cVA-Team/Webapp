@@ -5,6 +5,18 @@ on:
     branches:
       - master
       - dev
+  workflow_dispatch:
+    inputs:
+      target_ref:
+        description: "Branch, tag, or commit to build (optional; defaults to selected run ref)"
+        required: false
+        type: string
+      push:
+        description: "Push image to GHCR (false builds only)"
+        required: false
+        default: "true"
+        type: choice
+        options: ["true", "false"]
 
 jobs:
   build:
@@ -15,6 +27,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          ref: ${{ github.event.inputs.target_ref || github.ref }}
         
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
@@ -32,6 +46,9 @@ jobs:
           echo "REPO_NAME_LC=${REPO_NAME,,}" >> "$GITHUB_ENV"
 
       - name: Build and push Docker image
+        env:
+          TARGET_REF: ${{ github.event.inputs.target_ref }}
+          PUSH_IMAGES: ${{ github.event.inputs.push || 'true' }}
         run: |
           set -euo pipefail
           SHORT_SHA="${GITHUB_SHA::7}"
@@ -44,23 +61,38 @@ jobs:
             --build-arg WEBAPP_BUILD_DATE=$BUILD_DATE
           )
           
-          if [ "${{ github.ref_name }}" = "master" ]; then
+          BRANCH_NAME="${TARGET_REF:-${{ github.ref_name }}}"
+          SAFE_BRANCH="$(echo "${BRANCH_NAME//\//-}" | tr '[:upper:]' '[:lower:]')"
+
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            if [ -z "$SAFE_BRANCH" ]; then
+              SAFE_BRANCH="manual"
+            fi
+            BUILD_ARGS+=(--build-arg WEBAPP_IMAGE_TAG=${SAFE_BRANCH}-manual)
+            TAG_ARGS=(-t ghcr.io/$REPO_NAME_LC:${SAFE_BRANCH}-manual -t ghcr.io/$REPO_NAME_LC:${SAFE_BRANCH}-$SHORT_SHA)
+          elif [ "$SAFE_BRANCH" = "master" ]; then
             BUILD_ARGS+=(--build-arg WEBAPP_IMAGE_TAG=latest)
             TAG_ARGS=(-t ghcr.io/$REPO_NAME_LC:latest -t ghcr.io/$REPO_NAME_LC:master-$SHORT_SHA)
-          elif [ "${{ github.ref_name }}" = "dev" ]; then
+          elif [ "$SAFE_BRANCH" = "dev" ]; then
             BUILD_ARGS+=(--build-arg WEBAPP_IMAGE_TAG=dev)
             TAG_ARGS=(-t ghcr.io/$REPO_NAME_LC:dev -t ghcr.io/$REPO_NAME_LC:dev-$SHORT_SHA)
           else
-            echo "Unsupported branch for docker publish: ${{ github.ref_name }}" >&2
+            echo "Unsupported branch for docker publish: $SAFE_BRANCH" >&2
             exit 1
+          fi
+
+          DOCKER_OUTPUT_FLAG="--push"
+          ATTEST_ARGS=(--provenance=mode=max --sbom=true)
+          if [ "${PUSH_IMAGES:-true}" = "false" ]; then
+            DOCKER_OUTPUT_FLAG="--load"
+            ATTEST_ARGS=()
           fi
 
           docker buildx build \
             --platform linux/amd64 \
             --progress=plain \
-            --provenance=mode=max \
-            --sbom=true \
-            --push \
+            "${ATTEST_ARGS[@]}" \
+            $DOCKER_OUTPUT_FLAG \
             "${BUILD_ARGS[@]}" \
             "${TAG_ARGS[@]}" \
             .
