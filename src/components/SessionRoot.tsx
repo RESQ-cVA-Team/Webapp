@@ -59,12 +59,6 @@ function ThemeConsoleCommands() {
         document.documentElement.classList.remove("dark");
       }
     };
-    console.info(
-      "Theme commands available:\n" +
-      "setTheme('blue') // or any theme name\n" +
-      "setDark(true) // enable dark mode\n" +
-      "setDark(false) // disable dark mode"
-    );
   }, []);
   return null;
 }

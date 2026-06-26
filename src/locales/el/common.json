@@ -27,6 +27,10 @@
   "threads.dialog.save": "Αποθήκευση αλλαγών",
   "threads.menu.new": "Νέο Νήμα",
   "threads.menu.search": "Αναζήτηση Νημάτων",
+  "threads.search.description": "Βρείτε μια υπάρχουσα συνομιλία πληκτρολογώντας μέρος του ονόματός της.",
+  "threads.search.placeholder": "Αναζήτηση με όνομα νήματος",
+  "threads.search.empty.title": "Δεν βρέθηκαν αντίστοιχα νήματα",
+  "threads.search.empty.description": "Δοκιμάστε διαφορετικό όνομα ή δημιουργήστε νέο νήμα.",
   "threads.menu.list": "Νήματα Συνομιλίας",
   "threads.menu.collapse": "Σύμπτυξη",
   "threads.menu.expand": "Επέκταση",
@@ -52,5 +56,12 @@
   "visualization.type.radar": "Διάγραμμα ραντάρ",
   "visualization.type.box": "Διάγραμμα κουτιού",
   "carousel.previous": "Προηγούμενη διαφάνεια",
-  "carousel.next": "Επόμενη διαφάνεια"
+  "carousel.next": "Επόμενη διαφάνεια",
+  "welcome.title": "Καλώς ήρθατε στον Κλινικό Εικονικό Βοηθό",
+  "welcome.description": "Αυτό είναι ένα παράδειγμα μηνύματος πληροφοριών.",
+  "general.yes": "Ναι",
+  "general.no": "Όχι",
+  "general.cancel": "Ακύρωση",
+  "general.confirm": "Επιβεβαίωση",
+  "general.okay": "Εντάξει"
 }

@@ -1,16 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { addSubscriberForSender } from "@/lib/sseBus";
+import { addSubscriberForSender, type SseBusEvent } from "@/lib/sseBus";
 import { putUserAccessToken } from "@/lib/userTokenVault";
 import { buildRasaSenderId } from "@/lib/rasaSender";
+import { readTraceId } from "@/lib/traceId";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
+  const requestId = readTraceId(req.headers) ?? crypto.randomUUID();
   const session = await auth();
 
   if (!session?.accessToken || !session.user?.id) {
+    console.warn("[rasa][stream] Unauthorized request", {
+      requestId,
+      threadId: req.nextUrl.searchParams.get("threadId"),
+      performsUpstreamCall: false,
+    });
     return new NextResponse("Unauthorized", { status: 401 });
   }
 
@@ -19,6 +26,13 @@ export async function GET(req: NextRequest) {
   const parsedThreadId = threadParam ? Number(threadParam) : NaN;
   const threadId = Number.isFinite(parsedThreadId) ? parsedThreadId : null;
   const senderId = buildRasaSenderId(userSub, threadId);
+
+  console.info("[rasa][stream] Opening SSE subscription", {
+    requestId,
+    threadId,
+    senderId,
+    performsUpstreamCall: false,
+  });
 
   const tokenPayload = {
     accessToken: String(session.accessToken),
@@ -36,7 +50,13 @@ export async function GET(req: NextRequest) {
 
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
-      const send = (payload: unknown) => {
+      const send = (event: SseBusEvent) => {
+        controller.enqueue(encoder.encode(`id: ${event.id}\n`));
+        const data = JSON.stringify(event.payload ?? {});
+        controller.enqueue(encoder.encode(`data: ${data}\n\n`));
+      };
+
+      const sendRaw = (payload: unknown) => {
         const data = JSON.stringify(payload ?? {});
         controller.enqueue(encoder.encode(`data: ${data}\n\n`));
       };
@@ -44,7 +64,7 @@ export async function GET(req: NextRequest) {
       const unsubscribe = addSubscriberForSender(senderId, send);
 
       // Initial event so the client knows the stream is live
-      send({ type: "connected" });
+      sendRaw({ type: "connected" });
 
       const keepAlive = setInterval(() => {
         controller.enqueue(encoder.encode(`: keep-alive\n\n`));
@@ -53,6 +73,12 @@ export async function GET(req: NextRequest) {
       const cleanup = () => {
         clearInterval(keepAlive);
         unsubscribe();
+        console.info("[rasa][stream] Closing SSE subscription", {
+          requestId,
+          threadId,
+          senderId,
+          performsUpstreamCall: false,
+        });
         try {
           controller.close();
         } catch {

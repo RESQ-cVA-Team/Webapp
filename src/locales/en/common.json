@@ -27,6 +27,10 @@
   "threads.dialog.save": "Save Changes",
   "threads.menu.new": "New Thread",
   "threads.menu.search": "Search Threads",
+  "threads.search.description": "Find an existing conversation by typing part of its name.",
+  "threads.search.placeholder": "Search by thread name",
+  "threads.search.empty.title": "No matching threads",
+  "threads.search.empty.description": "Try a different name or create a new thread.",
   "threads.menu.list": "Conversation Threads",
   "threads.menu.collapse": "Collapse",
   "threads.menu.expand": "Expand",
@@ -52,5 +56,12 @@
   "visualization.type.radar": "Radar Chart",
   "visualization.type.box": "Box Plot",
   "carousel.previous": "Previous slide",
-  "carousel.next": "Next slide"
+  "carousel.next": "Next slide",
+  "welcome.title": "Welcome to the Clinician Virtual Assistant",
+  "welcome.description": "A brief introduction to get you started. \n The cVA is able to generate graphs based on your hospitals metrics.\n\nif it is your first time, we suggest you ask the CVA for a guided visualization, this will have the CVA go through the process step by step.\n\nOr go ahead and ask it to make you a graph of any of any kpi in the RES-Qdatabase. You can ask for filters or specific periods of time in your initial query or ask the CVA to apply filters to your graph after its been made.",
+  "general.yes": "Yes",
+  "general.no": "No",
+  "general.cancel": "Cancel",
+  "general.confirm": "Confirm",
+  "general.okay": "Okay"
 }
