@@ -236,7 +236,7 @@ export function ChatInput({
         />
         {suggestions.length > 0 ? (
           <div className="absolute inset-x-0 bottom-full mb-2 overflow-hidden rounded-md border bg-background shadow-md">
-            <ul className="max-h-100 overflow-y-auto py-1">
+            <ul className="max-h-100 overflow-y-auto ">
               {suggestions.map((suggestion, index) => (
                 <li key={suggestion}>
                   <button
@@ -251,7 +251,7 @@ export function ChatInput({
                       <span className="min-w-0 flex-1 break-words">{suggestion}</span>
                       {index === selectedSuggestionIndex ? (
                         <span className="shrink-0 rounded border border-border/70 bg-muted-foreground/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                          Tab
+                          ↹ TAB
                         </span>
                       ) : null}
                     </span>
