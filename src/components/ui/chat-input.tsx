@@ -66,6 +66,7 @@ export function ChatInput({
   const [message, setMessage] = React.useState("")
   const [isLoading, setIsLoading] = React.useState(false)
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = React.useState(0)
+  const [areSuggestionsHidden, setAreSuggestionsHidden] = React.useState(false)
   const textareaRef = React.useRef<HTMLTextAreaElement>(null)
   const { t } = useTranslation('common')
   const isBusy = isLoading || loading
@@ -75,6 +76,10 @@ export function ChatInput({
   const MAX_HEIGHT = 160
 
   const suggestions = React.useMemo(() => {
+    if (areSuggestionsHidden) {
+      return []
+    }
+
     if (/\s$/.test(message)) {
       return []
     }
@@ -90,7 +95,7 @@ export function ChatInput({
       .sort((left, right) => left.score - right.score || left.item.localeCompare(right.item))
       .map((entry) => entry.item)
       .slice(0, 6)
-  }, [autocompleteItems, message])
+  }, [areSuggestionsHidden, autocompleteItems, message])
 
   React.useEffect(() => {
     const textarea = textareaRef.current
@@ -107,6 +112,7 @@ export function ChatInput({
   }, [suggestions])
 
   const applySuggestion = React.useCallback((suggestion: string) => {
+    setAreSuggestionsHidden(false)
     setMessage((current) => {
       const withoutTrailingWhitespace = current.replace(/\s+$/, "")
       if (!withoutTrailingWhitespace) {
@@ -131,10 +137,12 @@ export function ChatInput({
     const trimmed = message.trim()
     if (!trimmed || isBusy || disabled) return
 
+    setAreSuggestionsHidden(true)
     setIsLoading(true)
     try {
       await onSubmit(trimmed)
       setMessage("")
+      setAreSuggestionsHidden(false)
       requestAnimationFrame(() => {
         textareaRef.current?.focus()
       })
@@ -158,7 +166,7 @@ export function ChatInput({
       return
     }
 
-    if (suggestions.length > 0 && (e.key === "Tab" || (e.key === "Enter" && selectedSuggestionIndex >= 0))) {
+    if (suggestions.length > 0 && (e.key === "Tab" )) {
       e.preventDefault()
       applySuggestion(suggestions[selectedSuggestionIndex] ?? suggestions[0])
       return
@@ -178,7 +186,10 @@ export function ChatInput({
           placeholder={computedPlaceholder}
           aria-label={computedPlaceholder}
           value={message}
-          onChange={(e) => setMessage(e.target.value)}
+          onChange={(e) => {
+            setAreSuggestionsHidden(false)
+            setMessage(e.target.value)
+          }}
           onKeyDown={handleKeyDown}
           disabled={disabled || isBusy}
           rows={1}
@@ -197,7 +208,14 @@ export function ChatInput({
                       applySuggestion(suggestion)
                     }}
                   >
-                    {suggestion}
+                    <span className="flex items-center justify-between gap-3">
+                      <span className="min-w-0 flex-1 break-words">{suggestion}</span>
+                      {index === selectedSuggestionIndex ? (
+                        <span className="shrink-0 rounded border border-border/70 bg-muted-foreground/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                          Tab
+                        </span>
+                      ) : null}
+                    </span>
                   </button>
                 </li>
               ))}

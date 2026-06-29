@@ -81,7 +81,7 @@ export default function ChatBubble({
               <button
                 key={idx}
                 onClick={() => onButtonClick?.(btn.payload)}
-                className="px-3 py-1 text-xs font-medium rounded-full border border-current opacity-80 hover:opacity-100 transition-opacity"
+                className="px-3 py-1 text-xs font-medium rounded-full border border-current opacity-60 hover:opacity-100 transition-opacity"
               >
                 {btn.title}
               </button>
