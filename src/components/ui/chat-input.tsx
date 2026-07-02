@@ -58,6 +58,39 @@ function getAutocompleteScore(candidate: string, query: string): number {
   return Number.POSITIVE_INFINITY
 }
 
+function isTypedTokenMatch(currentToken: string, suggestionToken: string): boolean {
+  const normalizedCurrent = currentToken.toLowerCase()
+  const normalizedSuggestion = suggestionToken.toLowerCase()
+  return normalizedCurrent === normalizedSuggestion || normalizedSuggestion.startsWith(normalizedCurrent)
+}
+
+function getReplacementWordCount(current: string, suggestion: string, autocompleteItems: string[]): number {
+  const currentWords = current.split(/\s+/).filter(Boolean)
+  const suggestionWords = suggestion.trim().split(/\s+/).filter(Boolean)
+
+  if (suggestionWords.length < 2 || currentWords.length < suggestionWords.length) {
+    return 1
+  }
+
+  const phraseLength = suggestionWords.length
+  const currentTailWords = currentWords.slice(-phraseLength)
+  const knownAutocompletePhrases = new Set(
+    autocompleteItems.map((item) => item.trim().toLowerCase()).filter(Boolean),
+  )
+
+  if (!knownAutocompletePhrases.has(currentTailWords.join(" ").toLowerCase())) {
+    return 1
+  }
+
+  for (let index = 1; index < phraseLength; index += 1) {
+    if (!isTypedTokenMatch(currentTailWords[index] ?? "", suggestionWords[index] ?? "")) {
+      return 1
+    }
+  }
+
+  return phraseLength
+}
+
 interface ChatInputProps {
   onSubmit: (message: string) => Promise<void> | void
   placeholder?: string
@@ -78,6 +111,7 @@ export function ChatInput({
   const [message, setMessage] = React.useState("")
   const [isLoading, setIsLoading] = React.useState(false)
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = React.useState(0)
+  const [areSuggestionsHidden, setAreSuggestionsHidden] = React.useState(false)
   const textareaRef = React.useRef<HTMLTextAreaElement>(null)
   const { t } = useTranslation('common')
   const isBusy = isLoading || loading
@@ -87,6 +121,10 @@ export function ChatInput({
   const MAX_HEIGHT = 160
 
   const suggestions = React.useMemo(() => {
+    if (areSuggestionsHidden) {
+      return []
+    }
+
     if (/\s$/.test(message)) {
       return []
     }
@@ -108,7 +146,7 @@ export function ChatInput({
       .sort((left, right) => left.score - right.score || left.item.localeCompare(right.item))
       .map((entry) => entry.item)
       .slice(0, 6)
-  }, [autocompleteItems, message])
+  }, [areSuggestionsHidden, autocompleteItems, message])
 
   const getMatchedTargetSuffix = React.useCallback((input: string): string | null => {
     const trimmed = input.replace(/\s+$/, "")
@@ -139,6 +177,7 @@ export function ChatInput({
   }, [suggestions])
 
   const applySuggestion = React.useCallback((suggestion: string) => {
+    setAreSuggestionsHidden(false)
     setMessage((current) => {
       const withoutTrailingWhitespace = current.replace(/\s+$/, "")
       if (!withoutTrailingWhitespace) {
@@ -152,27 +191,36 @@ export function ChatInput({
         return `${prefix}${suggestion} `
       }
 
-      const activeTokenMatch = withoutTrailingWhitespace.match(/\S+$/)
-      if (!activeTokenMatch || activeTokenMatch.index === undefined) {
-        return `${withoutTrailingWhitespace}${suggestion} `
+      const currentWords = withoutTrailingWhitespace.split(/\s+/).filter(Boolean)
+      if (currentWords.length === 0) {
+        return `${suggestion} `
       }
 
-      return `${withoutTrailingWhitespace.slice(0, activeTokenMatch.index)}${suggestion} `
+      const replacementWordCount = getReplacementWordCount(
+        withoutTrailingWhitespace,
+        suggestion,
+        autocompleteItems,
+      )
+
+      const prefixWords = currentWords.slice(0, Math.max(0, currentWords.length - replacementWordCount))
+      return `${[...prefixWords, suggestion].join(" ")} `
     })
 
     requestAnimationFrame(() => {
       textareaRef.current?.focus()
     })
-  }, [getMatchedTargetSuffix])
+  }, [autocompleteItems, getMatchedTargetSuffix])
 
   const handleSubmit = async () => {
     const trimmed = message.trim()
     if (!trimmed || isBusy || disabled) return
 
+    setAreSuggestionsHidden(true)
     setIsLoading(true)
     try {
       await onSubmit(trimmed)
       setMessage("")
+      setAreSuggestionsHidden(false)
       requestAnimationFrame(() => {
         textareaRef.current?.focus()
       })
@@ -216,7 +264,10 @@ export function ChatInput({
           placeholder={computedPlaceholder}
           aria-label={computedPlaceholder}
           value={message}
-          onChange={(e) => setMessage(e.target.value)}
+          onChange={(e) => {
+            setAreSuggestionsHidden(false)
+            setMessage(e.target.value)
+          }}
           onKeyDown={handleKeyDown}
           disabled={disabled || isBusy}
           rows={1}
@@ -224,7 +275,7 @@ export function ChatInput({
         />
         {suggestions.length > 0 ? (
           <div className="absolute inset-x-0 bottom-full mb-2 overflow-hidden rounded-md border bg-background shadow-md">
-            <ul className="max-h-100 overflow-y-auto py-1">
+            <ul className="max-h-100 overflow-y-auto ">
               {suggestions.map((suggestion, index) => (
                 <li key={suggestion}>
                   <button
@@ -235,7 +286,14 @@ export function ChatInput({
                       applySuggestion(suggestion)
                     }}
                   >
-                    {suggestion}
+                    <span className="flex items-center justify-between gap-3">
+                      <span className="min-w-0 flex-1 break-words">{suggestion}</span>
+                      {index === selectedSuggestionIndex ? (
+                        <span className="shrink-0 rounded border border-border/70 bg-muted-foreground/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                          ↹ TAB
+                        </span>
+                      ) : null}
+                    </span>
                   </button>
                 </li>
               ))}
