@@ -334,8 +334,19 @@ export default function ChatWindow() {
     if (isVisualizationResponseDTO(custom)) {
       setVisualization(custom);
       addToHistory(custom);
-      setSelectedStatisticsIndex(null);
-      setSelectedChartIndex(0);
+      const chartCount = custom.charts?.length ?? 0;
+      const statCount = custom.stats?.length ?? 0;
+
+      if (chartCount > 0) {
+        setSelectedStatisticsIndex(null);
+        setSelectedChartIndex(0);
+      } else if (statCount > 0) {
+        setSelectedChartIndex(null);
+        setSelectedStatisticsIndex(0);
+      } else {
+        setSelectedChartIndex(null);
+        setSelectedStatisticsIndex(null);
+      }
     }
   }, [emitPlanDebugMessage]);
 

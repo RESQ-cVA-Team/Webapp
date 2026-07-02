@@ -9,6 +9,7 @@ import clsx from "clsx";
 import { useTranslation } from 'react-i18next';
 import '@/i18n';
 import { ChartThumbnail } from "@/components/ui/chart-thumbnail";
+import { MannWhitneyUThumbnail } from "@/components/charts/MannWhitneyUThumbnail";
 import { useThread } from "@/components/ThreadContext";
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "../tooltip";
 
@@ -251,10 +252,29 @@ export default function HistoryWindow() {
                           isSelected ? "ring-3 ring-blue-500 scale-[1.02]" : "hover:ring- hover:ring-muted"
                         )}
                       >
-                        <div className="w-full h-full flex flex-col justify-between border hover:bg-black/5 p-3">
-                          <div className="text-xs uppercase text-muted-foreground">{t('visualization.title')}</div>
-                          <div className="text-sm font-semibold line-clamp-2">{item.title || item.test_type}</div>
-                          <div className="text-xs text-muted-foreground">{statusLabel}</div>
+                        <div className="w-full h-full flex flex-col justify-between border hover:bg-black/5">
+                          <div className="w-full flex-1 min-w-0 flex items-center justify-center overflow-hidden p-3">
+                            <div className="w-4/5 h-4/5">
+                              {item.test_type === 'MANN_WHITNEY_U_TEST' ? (
+                                <MannWhitneyUThumbnail result={item} />
+                              ) : (
+                                <div className="flex h-full w-full items-center justify-center rounded-lg border bg-muted/30 p-3 text-center">
+                                  <div>
+                                    <div className="text-xs font-semibold uppercase text-muted-foreground">
+                                      {t('visualization.title')}
+                                    </div>
+                                    <div className="mt-2 text-sm font-semibold line-clamp-2">
+                                      {item.title || item.test_type}
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <div className="p-3 text-sm flex flex-col flex-shrink-0 flex-grow-0">
+                            <div className="font-semibold truncate">{item.title || item.test_type}</div>
+                            <div className="text-xs text-muted-foreground truncate">{statusLabel}</div>
+                          </div>
                         </div>
                       </div>
                     </TooltipTrigger>
