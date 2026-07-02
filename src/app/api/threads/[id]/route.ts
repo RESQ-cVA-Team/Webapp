@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies, headers } from "next/headers";
 import { auth } from "@/auth";
-import { getRasaUrlForRequest, withRasaAuth } from "@/lib/rasaConfig";
-import { buildRasaSenderId } from "@/lib/rasaSender";
-import { deleteThreadForUser, getThreadForUser, renameThreadForUser } from "@/lib/threadRegistryStore";
+import { deleteThreadInRasa, getThreadFromRasa, renameThreadInRasa } from "@/lib/rasaThreadIndex";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -41,7 +39,17 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const payload = body && typeof body === "object" ? (body as Record<string, unknown>) : {};
   const name = typeof payload.name === "string" ? payload.name : "";
 
-  const updated = await renameThreadForUser(userId, threadId, name);
+  const cookieStore = await cookies();
+  const headerStore = await headers();
+  const cookiesMap = new Map(cookieStore.getAll().map((entry) => [entry.name, entry.value]));
+
+  const updated = await renameThreadInRasa({
+    headers: headerStore,
+    cookies: cookiesMap,
+    userId,
+    threadId,
+    name,
+  });
   if (!updated) {
     return NextResponse.json({ message: "Thread not found" }, { status: 404 });
   }
@@ -62,47 +70,21 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     return NextResponse.json({ message: "Invalid thread id" }, { status: 400 });
   }
 
-  const existingThread = await getThreadForUser(userId, threadId);
-  if (!existingThread) {
-    return NextResponse.json({ message: "Thread not found" }, { status: 404 });
-  }
+  const cookieStore = await cookies();
+  const headerStore = await headers();
+  const cookiesMap = new Map(cookieStore.getAll().map((entry) => [entry.name, entry.value]));
 
-  const deleted = await deleteThreadForUser(userId, threadId);
+  // deleteThreadInRasa now calls the Rasa DELETE endpoint which handles
+  // both hard-delete of the conversation tracker and the index soft-delete.
+  const deleted = await deleteThreadInRasa({
+    headers: headerStore,
+    cookies: cookiesMap,
+    userId,
+    threadId,
+  });
   if (!deleted) {
     return NextResponse.json({ message: "Thread not found" }, { status: 404 });
   }
 
-  const cookieStore = await cookies();
-  const headerStore = await headers();
-  const apiUrl = getRasaUrlForRequest(headerStore, new Map(cookieStore.getAll().map((entry) => [entry.name, entry.value])));
-
-  if (apiUrl) {
-    const senderId = buildRasaSenderId(userId, threadId);
-    try {
-      const response = await fetch(withRasaAuth(`${apiUrl}/conversations/${senderId}/tracker/events`), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ event: "restart" }),
-      });
-
-      if (!response.ok) {
-        console.warn("Rasa tracker reset returned non-OK during thread deletion", {
-          apiUrl,
-          senderId,
-          status: response.status,
-          statusText: response.statusText,
-        });
-      }
-    } catch (error) {
-      console.warn("Failed to reset Rasa tracker during thread deletion", {
-        apiUrl,
-        senderId,
-        error,
-      });
-    }
-  }
-
-  return NextResponse.json({ ok: true, id: existingThread.id });
+  return NextResponse.json({ ok: true, id: threadId });
 }

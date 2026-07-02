@@ -1,9 +1,22 @@
 /**
- * Extracts only the last word being typed from the user's input.
+ * Extracts candidate autocomplete targets from the user's input.
+ * Returns up to `maxWords` trailing words first, then the last word fallback.
  * Example:
- * "I want to see do" → "do"
+ * "I want Door T" -> ["Door T", "T"]
  */
-export function extractAutocompleteTarget(input: string): string {
-  const words = input.trim().split(/\s+/);
-  return words[words.length - 1] || "";
+export function extractAutocompleteTargets(input: string, maxWords = 3): string[] {
+  const trimmed = input.trim();
+  if (!trimmed) return [];
+
+  const words = trimmed.split(/\s+/);
+  const multiWord = words.slice(-Math.max(1, maxWords)).join(" ");
+  const singleWord = words[words.length - 1] || "";
+
+  return Array.from(
+    new Set(
+      [multiWord, singleWord]
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0)
+    )
+  );
 }

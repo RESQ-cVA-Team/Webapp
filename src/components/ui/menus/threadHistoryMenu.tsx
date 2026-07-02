@@ -32,6 +32,8 @@ type Thread = {
 }
 
 export function SideMenu() {
+  const isAuthStatus = (status: number) => status === 401 || status === 403;
+
   const {
     open,
     setOpen,
@@ -49,6 +51,11 @@ export function SideMenu() {
   const searchResultRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
   const { currentThreadId, setCurrentThreadId } = useThread();
+  const currentThreadIdRef = useRef<number | null>(currentThreadId);
+
+  useEffect(() => {
+    currentThreadIdRef.current = currentThreadId;
+  }, [currentThreadId]);
 
   const selectThread = useCallback((threadId: number) => {
     setCurrentThreadId(threadId);
@@ -84,8 +91,8 @@ export function SideMenu() {
   const deleteThread = async (id:number) => {
     try {
       const res = await fetch(`/api/threads/${id}`, { method: "DELETE" });
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
         throw new Error(data?.message || "Failed to delete thread");
       }
 
@@ -148,9 +155,14 @@ export function SideMenu() {
   const getThreads = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/threads', { method: 'GET' });
+      const res = await fetch('/api/threads', { method: 'GET', cache: 'no-store' });
 
       if (!res.ok) {
+        if (isAuthStatus(res.status)) {
+          setThreads([]);
+          setCurrentThreadId(null);
+          return;
+        }
         console.error('Failed to fetch threads:', res.statusText);
         return;
       }
@@ -165,8 +177,9 @@ export function SideMenu() {
       }
 
       setThreads(newThreads);
-      const hasCurrentThread = currentThreadId !== null && newThreads.some((thread: Thread) => thread.id === currentThreadId);
-      if ((!hasCurrentThread || currentThreadId === null) && newThreads.length > 0) {
+      const activeThreadId = currentThreadIdRef.current;
+      const hasCurrentThread = activeThreadId !== null && newThreads.some((thread: Thread) => thread.id === activeThreadId);
+      if ((!hasCurrentThread || activeThreadId === null) && newThreads.length > 0) {
         setCurrentThreadId(newThreads[0].id);
       }
     } catch (err) {
@@ -174,7 +187,7 @@ export function SideMenu() {
     } finally {
       setLoading(false);
     }
-  }, [currentThreadId, setCurrentThreadId]);
+  }, [setCurrentThreadId]);
 
 
   useEffect(() => {

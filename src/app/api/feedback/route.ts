@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { cookies as nextCookies } from "next/headers";
 import { headers as nextHeaders } from "next/headers";
-import { getThreadForUser } from "@/lib/threadRegistryStore";
+import { getThreadFromRasa } from "@/lib/rasaThreadIndex";
 import { auth } from "@/auth";
 import { createFeedbackReporterKey, getFeedbackIdentityFromSession, getFeedbackReporterAliases } from "@/lib/feedbackAccess";
 import {
@@ -86,10 +87,17 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const thread = await getThreadForUser(identity.userId, threadId);
-
   const captureConversationContext = shouldCaptureFeedbackConversationContext();
   const headerStore = await nextHeaders();
+  const cookieStore = await nextCookies();
+  const cookiesMap = new Map(req.cookies.getAll().map((cookie) => [cookie.name, cookie.value]));
+
+  const thread = await getThreadFromRasa({
+    headers: headerStore,
+    cookies: cookiesMap,
+    userId: identity.userId,
+    threadId,
+  });
 
   let historyResult:
     | Awaited<ReturnType<typeof fetchRasaHistory>>
@@ -99,7 +107,7 @@ export async function POST(req: NextRequest) {
     try {
       historyResult = await fetchRasaHistory({
         headers: headerStore,
-        cookies: new Map(req.cookies.getAll().map((cookie) => [cookie.name, cookie.value])),
+        cookies: new Map(cookieStore.getAll().map((cookie) => [cookie.name, cookie.value])),
         userSub: identity.userId,
         threadId,
         includeDebugMetadata: FEEDBACK_DEBUG_MODE,

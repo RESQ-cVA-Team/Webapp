@@ -47,8 +47,12 @@ export default function TopBar() {
 					setBotLangs(langs);
 			})
 			.catch((error) => {
-				console.error('Failed to fetch bots:', error);
+					const status = typeof error === "number" ? error : null;
+					if (status !== 401 && status !== 403) {
+						console.error('Failed to fetch bots:', error);
+					}
 				setBotsByLang({});
+					setBotLangs([]);
 			});
 		return () => { cancelled = true };
 	}, []);

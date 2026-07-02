@@ -23,6 +23,7 @@ type Message = {
   id: string;
   sender: "user" | "other";
   content: string;
+  rawContent?: string;
   kind?: "normal" | "progress" | "plan";
   feedbackKey?: string;
   feedback?: {
@@ -53,11 +54,17 @@ type Message = {
 type HistoryResponseItem = {
   role?: unknown;
   text?: unknown;
+  rawText?: unknown;
   custom?: unknown;
   buttons?: unknown;
   feedbackKey?: unknown;
   feedback?: unknown;
   debug?: unknown;
+  type?: unknown;
+  jobId?: unknown;
+  scope?: unknown;
+  source?: unknown;
+  progress?: unknown;
 };
 
 type FeedbackPayload = {
@@ -74,8 +81,6 @@ type HistoryApiResponse = {
 };
 
 const PLAN_CHAT_DEBUG_MODE = process.env.NODE_ENV === "development";
-const SEEN_SSE_EVENT_TTL_MS = 15000;
-
 
 function createPlanDebugKey(plan: VisualizationPlanMessageDTO, traceId: string | null): string | null {
   if (traceId) {
@@ -87,66 +92,6 @@ function createPlanDebugKey(plan: VisualizationPlanMessageDTO, traceId: string |
   } catch {
     return null;
   }
-}
-
-function stableSerialize(value: unknown): string {
-  if (value === null || value === undefined) {
-    return String(value);
-  }
-
-  if (typeof value !== "object") {
-    return JSON.stringify(value);
-  }
-
-  if (Array.isArray(value)) {
-    return `[${value.map((entry) => stableSerialize(entry)).join(",")}]`;
-  }
-
-  const entries = Object.entries(value as Record<string, unknown>).sort(([left], [right]) =>
-    left.localeCompare(right)
-  );
-
-  return `{${entries
-    .map(([key, entryValue]) => `${JSON.stringify(key)}:${stableSerialize(entryValue)}`)
-    .join(",")}}`;
-}
-
-function createMessageKey(message: Message): string {
-  return stableSerialize({
-    sender: message.sender,
-    kind: message.kind ?? "normal",
-    content: message.content,
-    feedbackKey: message.feedbackKey ?? null,
-    buttons: message.buttons ?? null,
-  });
-}
-
-function createMessageCrossSourceKey(message: Message): string {
-  return stableSerialize({
-    sender: message.sender,
-    kind: message.kind ?? "normal",
-    content: message.content,
-    buttons: message.buttons ?? null,
-  });
-}
-
-function mergeMessages(historyMessages: Message[], liveMessages: Message[]): Message[] {
-  const merged = [...historyMessages];
-  const seen = new Set(historyMessages.map((message) => createMessageKey(message)));
-  const seenCrossSource = new Set(
-    historyMessages.map((message) => createMessageCrossSourceKey(message))
-  );
-
-  for (const message of liveMessages) {
-    const key = createMessageKey(message);
-    const crossSourceKey = createMessageCrossSourceKey(message);
-    if (seen.has(key) || seenCrossSource.has(crossSourceKey)) continue;
-    seen.add(key);
-    seenCrossSource.add(crossSourceKey);
-    merged.push(message);
-  }
-
-  return merged;
 }
 
 function getCustomProgressText(custom: unknown): string | null {
@@ -230,18 +175,24 @@ function mapHistoryItems(items: unknown[], seenPlanKeys: Set<string>): { mapped:
       }
     }
 
+    const normalizedButtons = Array.isArray(candidate.buttons)
+      ? candidate.buttons.filter(isMessageButton).map((button) => ({
+          title: button.title,
+          payload: button.payload,
+        }))
+      : undefined;
+
     if (typeof candidate.text !== "string") return messages;
+
+    const displayText = candidate.text;
+    const rawText = typeof candidate.rawText === "string" ? candidate.rawText : displayText;
 
     messages.unshift({
       id: crypto.randomUUID(),
       sender: candidate.role === "user" ? "user" : "other",
-      content: candidate.text,
-      buttons: Array.isArray(candidate.buttons)
-        ? candidate.buttons.filter(isMessageButton).map((button) => ({
-            title: button.title,
-            payload: button.payload,
-          }))
-        : undefined,
+      content: displayText,
+      rawContent: rawText,
+      buttons: normalizedButtons,
       feedbackKey: typeof candidate.feedbackKey === "string" ? candidate.feedbackKey : undefined,
       feedback:
         candidate.feedback && typeof candidate.feedback === "object"
@@ -299,14 +250,15 @@ export default function ChatWindow() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [autocompleteItems, setAutocompleteItems] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
-  const [isWaitingForBot, setIsWaitingForBot] = useState(false);
+  const [pendingRequests, setPendingRequests] = useState(0);
+  const [activeLongActionJobCount, setActiveLongActionJobCount] = useState(0);
+  const activeLongActionJobsRef = useRef<Set<string>>(new Set());
   const seenPlanMessageKeysRef = useRef<Set<string>>(new Set());
-  const seenIncomingEventIdsRef = useRef<Map<string, number>>(new Map());
+  const seenCommittedEventIndexesRef = useRef<Set<number>>(new Set());
   const language = useSettingsStore((s) => s.language);
   const { t } = useTranslation('common');
   const isChatDisabled = currentThreadId === null;
-  const lastUserMessageRef = useRef<string>("");
-  const lastErrorHadRetryRef = useRef<boolean>(false);
+  const isWaitingForBot = pendingRequests > 0 || activeLongActionJobCount > 0;
 
   const emitPlanDebugMessage = useCallback((plan: VisualizationPlanMessageDTO, traceId: string | null) => {
     const planMessage = createPlanDebugEntry(plan, traceId, seenPlanMessageKeysRef.current);
@@ -339,122 +291,141 @@ export default function ChatWindow() {
     }
   }, [emitPlanDebugMessage]);
 
-  const addMessage = useCallback((payload: unknown, eventId?: string) => {
-  const obj = payload as {
-    text?: unknown;
-    custom?: unknown;
-    type?: unknown;
-    buttons?: unknown;
-    progress?: unknown;
-    feedbackKey?: unknown;
-    feedback?: unknown;
-    debug?: unknown;
-  } | null;
+  const addMessage = useCallback((payload: unknown) => {
+    const obj = payload as HistoryResponseItem | null;
 
-  if (!obj || typeof obj !== "object") return;
+    if (!obj || typeof obj !== "object") return;
 
-  if (obj.type === "connected") return;
+    if (obj.type === "connected") return;
 
-  if (obj.type === "lock") {
-    setIsWaitingForBot(true);
-    return;
-  }
-
-  if (obj.type === "release") {
-    setMessages((prev) => prev.filter((message) => message.kind !== "progress"));
-    setIsWaitingForBot(false);
-    return;
-  }
-
-  if (eventId) {
-    const now = Date.now();
-
-    for (const [key, timestamp] of seenIncomingEventIdsRef.current.entries()) {
-      if (now - timestamp > SEEN_SSE_EVENT_TTL_MS) {
-        seenIncomingEventIdsRef.current.delete(key);
+    if (obj.type === "lock") {
+      const jobId = typeof obj.jobId === "string" && obj.jobId.trim().length > 0 ? obj.jobId.trim() : "default";
+      if (!activeLongActionJobsRef.current.has(jobId)) {
+        activeLongActionJobsRef.current.add(jobId);
+        setActiveLongActionJobCount(activeLongActionJobsRef.current.size);
       }
-    }
-
-    const previousSeenAt = seenIncomingEventIdsRef.current.get(eventId);
-    if (typeof previousSeenAt === "number" && now - previousSeenAt <= SEEN_SSE_EVENT_TTL_MS) {
       return;
     }
 
-    seenIncomingEventIdsRef.current.set(eventId, now);
-  }
-
-  const progressText =
-    typeof obj.progress === "string"
-      ? obj.progress
-      : getCustomProgressText(obj.custom);
-
-  if (progressText) {
-    setMessages((prev) => {
-      const base = prev.filter((m) => m.kind !== "progress");
-      return [
-        ...base,
-        {
-          id: crypto.randomUUID(),
-          sender: "other",
-          content: progressText,
-          kind: "progress",
-        },
-      ];
-    });
-
-    return;
-  }
-
-  setMessages((prev) => prev.filter((m) => m.kind !== "progress"));
-
-  if (typeof obj.text === "string" && obj.text.length > 0) {
-    const botMsg: Message = {
-      id: crypto.randomUUID(),
-      sender: "other",
-      content: obj.text,
-    };
-
-    if (lastErrorHadRetryRef.current) {
-      botMsg.buttons = [{
-        title: "Try again",
-        payload: lastUserMessageRef.current,
-      }];
-      lastErrorHadRetryRef.current = false;
+    if (obj.type === "release") {
+      const jobId = typeof obj.jobId === "string" && obj.jobId.trim().length > 0 ? obj.jobId.trim() : "default";
+      activeLongActionJobsRef.current.delete(jobId);
+      setActiveLongActionJobCount(activeLongActionJobsRef.current.size);
+      setMessages((prev) => prev.filter((message) => message.kind !== "progress"));
+      return;
     }
 
-    if (Array.isArray(obj.buttons)) {
-      const buttons = obj.buttons
-        .filter(isMessageButton)
-        .map((btn) => ({
-          title: btn.title,
-          payload: btn.payload,
-        }));
-
-      if (buttons.length > 0) {
-        botMsg.buttons = buttons;
+    const debug = obj.debug && typeof obj.debug === "object"
+      ? (obj.debug as Message["debug"])
+      : undefined;
+    const eventIndex = typeof debug?.eventIndex === "number" ? debug.eventIndex : null;
+    if (eventIndex !== null) {
+      if (seenCommittedEventIndexesRef.current.has(eventIndex)) {
+        return;
       }
+      seenCommittedEventIndexesRef.current.add(eventIndex);
     }
 
-    setMessages((prev) => [...prev, botMsg]);
-  }
+    const progressText =
+      typeof obj.progress === "string"
+        ? obj.progress
+        : getCustomProgressText(obj.custom);
 
-  if (obj.custom) {
+    if (progressText) {
+      setMessages((prev) => {
+        const base = prev.filter((m) => m.kind !== "progress");
+        return [
+          ...base,
+          {
+            id: crypto.randomUUID(),
+            sender: "other",
+            content: progressText,
+            kind: "progress",
+          },
+        ];
+      });
+
+      return;
+    }
+
     setMessages((prev) => prev.filter((m) => m.kind !== "progress"));
-    const custom = obj.custom as { type?: string; retry?: boolean };
-    lastErrorHadRetryRef.current = custom?.type === "visualization_error" && custom?.retry === true;
-    applyVisualizationFromCustom(obj.custom);
-  }
- 
-}, [applyVisualizationFromCustom]);
 
-  const handleButtonClick = async (buttonPayload: string) => {
-    // Send a formatted message with the button payload
-    await sendMessage(buttonPayload);
+    const sender: Message["sender"] = obj.role === "user" ? "user" : "other";
+    const displayText = typeof obj.text === "string" ? obj.text : null;
+    const rawText =
+      typeof obj.rawText === "string"
+        ? obj.rawText
+        : typeof obj.text === "string"
+          ? obj.text
+          : null;
+
+    const normalizedButtons = Array.isArray(obj.buttons)
+      ? obj.buttons
+          .filter(isMessageButton)
+          .map((btn) => ({
+            title: btn.title,
+            payload: btn.payload,
+          }))
+      : undefined;
+
+    if (typeof displayText === "string" && displayText.length > 0 && (obj.role === "assistant" || obj.role === "user")) {
+      const streamedMsg: Message = {
+        id: crypto.randomUUID(),
+        sender,
+        content: displayText,
+        rawContent: rawText ?? displayText,
+        feedbackKey: typeof obj.feedbackKey === "string" ? obj.feedbackKey : undefined,
+        feedback:
+          obj.feedback && typeof obj.feedback === "object"
+            ? (obj.feedback as FeedbackPayload)
+            : undefined,
+        debug,
+      };
+
+      if (normalizedButtons && normalizedButtons.length > 0) {
+        streamedMsg.buttons = normalizedButtons;
+      }
+
+      setMessages((prev) => {
+        const withoutPendingProgress = prev.filter((m) => m.kind !== "progress");
+
+        if (obj.role !== "user") {
+          return [...withoutPendingProgress, streamedMsg];
+        }
+
+        const pendingIndex = withoutPendingProgress.findIndex(
+          (message) =>
+            message.sender === "user" &&
+            message.debug?.pending === true &&
+            (message.rawContent ?? message.content) === (rawText ?? displayText)
+        );
+
+        if (pendingIndex === -1) {
+          return [...withoutPendingProgress, streamedMsg];
+        }
+
+        const next = [...withoutPendingProgress];
+        next.splice(pendingIndex, 1, streamedMsg);
+        return next;
+      });
+    }
+
+    if (obj.custom) {
+      setMessages((prev) => prev.filter((m) => m.kind !== "progress"));
+      applyVisualizationFromCustom(obj.custom);
+    }
+  }, [applyVisualizationFromCustom]);
+
+  const handleButtonClick = async (buttonPayload: string, buttonTitle?: string) => {
+    await sendMessage(buttonPayload, { uiDisplayText: buttonTitle });
   };
 
   useEffect(() => {
     seenPlanMessageKeysRef.current.clear();
-    seenIncomingEventIdsRef.current.clear();
+    seenCommittedEventIndexesRef.current.clear();
+    activeLongActionJobsRef.current.clear();
+    setActiveLongActionJobCount(0);
+    setPendingRequests(0);
 
     let cancelled = false;
 
@@ -473,12 +444,18 @@ export default function ChatWindow() {
         const { mapped, customPayloads, error, status } = await fetchThreadHistory(threadId, seenPlanMessageKeysRef.current);
 
         if (!cancelled) {
-          setIsWaitingForBot(false);
           if (error && status !== 404) {
             console.warn("History request degraded:", error);
           }
 
-          setMessages((prev) => mergeMessages(mapped, prev));
+          for (const message of mapped) {
+            const eventIndex = message.debug?.eventIndex;
+            if (typeof eventIndex === "number") {
+              seenCommittedEventIndexesRef.current.add(eventIndex);
+            }
+          }
+
+          setMessages(mapped);
           for (const customPayload of customPayloads) {
             applyVisualizationFromCustom(customPayload, { emitPlanMessage: false });
           }
@@ -511,7 +488,7 @@ export default function ChatWindow() {
     es.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data ?? "null");
-        addMessage(data, event.lastEventId || undefined);
+        addMessage(data);
       } catch (err) {
         console.error("SSE message parse error:", err);
       }
@@ -545,59 +522,71 @@ export default function ChatWindow() {
       .catch((err) => console.error("Failed to fetch autocomplete values:", err));
   }, [language]);
 
-  const sendMessage = async (msg: string) => {
-  if (!currentThreadId) return;
-  lastUserMessageRef.current = msg;
+  const sendMessage = async (msg: string, options?: { uiDisplayText?: string }) => {
+    if (!currentThreadId) return;
 
-  window.dispatchEvent(
-    new CustomEvent("thread-activity", {
-      detail: { threadId: currentThreadId },
-    })
-  );
-
-  const userMsg: Message = {
-    id: crypto.randomUUID(),
-    sender: "user",
-    content: msg,
-    debug: {
-      pending: true,
-      source: "live-input",
-    },
-  };
-
-  setMessages((prev) => [...prev, userMsg]);
-
-  try {
-    const res = await fetch("/api/rasa", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Accept-Language": language,
-      },
-      body: JSON.stringify({ message: msg, threadId: currentThreadId }),
-      credentials: "include",
-    });
-
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-  } catch (err) {
-    setIsWaitingForBot(false);
-
-    console.error( "/api/rasa error:", err);
-
-    const errorMsg: Message = {
+    const pendingDisplayText =
+      typeof options?.uiDisplayText === "string" && options.uiDisplayText.trim().length > 0
+        ? options.uiDisplayText
+        : msg;
+    const pendingMessage: Message = {
       id: crypto.randomUUID(),
-      sender: "other",
-      content: t("chat.error"),
+      sender: "user",
+      content: pendingDisplayText,
+      rawContent: msg,
       debug: {
         pending: true,
-        source: "live-error",
+        source: "local-pending",
       },
     };
 
-    setMessages((prev) => [...prev, errorMsg]);
-  }
-};
+    setMessages((prev) => [...prev, pendingMessage]);
+    setPendingRequests((count) => count + 1);
+
+    window.dispatchEvent(
+      new CustomEvent("thread-activity", {
+        detail: { threadId: currentThreadId },
+      })
+    );
+
+    try {
+      const res = await fetch("/api/rasa", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept-Language": language,
+        },
+        body: JSON.stringify({
+          message: msg,
+          threadId: currentThreadId,
+          ...(pendingDisplayText !== msg ? { uiDisplayText: pendingDisplayText } : {}),
+        }),
+        credentials: "include",
+      });
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    } catch (err) {
+      console.error( "/api/rasa error:", err);
+
+      setMessages((prev) =>
+        prev.filter(
+          (message) =>
+            !(message.sender === "user" && message.debug?.pending === true && (message.rawContent ?? message.content) === msg)
+        )
+      );
+
+      const errorMsg: Message = {
+        id: crypto.randomUUID(),
+        sender: "other",
+        content: t("chat.error"),
+      };
+
+      setMessages((prev) => [...prev, errorMsg]);
+    } finally {
+      setPendingRequests((count) => Math.max(0, count - 1));
+    }
+  };
 
   return (
     <div className=" flex flex-col h-full">
