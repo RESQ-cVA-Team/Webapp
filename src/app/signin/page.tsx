@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn, useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ export default function SignInPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectStartedRef = useRef(false);
+  const [isStartingSignIn, setIsStartingSignIn] = useState(false);
 
   const callbackUrl = useMemo(
     () => resolveCallbackUrl(searchParams.get("callbackUrl")),
@@ -27,15 +28,7 @@ export default function SignInPage() {
   useEffect(() => {
     if (status === "authenticated") {
       router.replace(callbackUrl);
-      return;
     }
-
-    if (status !== "unauthenticated" || redirectStartedRef.current) {
-      return;
-    }
-
-    redirectStartedRef.current = true;
-    void signIn("keycloak", { callbackUrl });
   }, [callbackUrl, router, status]);
 
   return (
@@ -43,16 +36,19 @@ export default function SignInPage() {
       <div className="w-full max-w-md rounded-2xl border bg-background p-8 text-center shadow-sm">
         <h1 className="text-2xl font-semibold tracking-tight">Redirecting to sign in</h1>
         <p className="mt-3 text-sm text-muted-foreground">
-          You will be sent to Keycloak to continue authentication.
+          Continue to Keycloak to authenticate. If your identity provider is temporarily unavailable,
+          stay on this page and retry when it is back.
         </p>
         <Button
           className="mt-6 w-full"
+          disabled={isStartingSignIn}
           onClick={() => {
+            setIsStartingSignIn(true);
             redirectStartedRef.current = true;
             void signIn("keycloak", { callbackUrl });
           }}
         >
-          Continue to sign in
+          {isStartingSignIn ? "Starting sign in..." : "Continue to sign in"}
         </Button>
       </div>
     </div>

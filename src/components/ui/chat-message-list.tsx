@@ -48,7 +48,7 @@ type Message = {
 type Props = {
   messages: Message[];
   currentThreadId: number | null;
-  onButtonClick?: (payload: string) => void;
+  onButtonClick?: (payload: string, title?: string) => void;
 };
 
 export default function ChatMessageList({ messages, currentThreadId, onButtonClick }: Props) {

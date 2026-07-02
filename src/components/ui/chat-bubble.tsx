@@ -25,7 +25,7 @@ interface ChatBubbleProps {
     title: string;
     payload: string;
   }>;
-  onButtonClick?: (payload: string) => void;
+  onButtonClick?: (payload: string, title?: string) => void;
 }
 
 export default function ChatBubble({
@@ -80,8 +80,8 @@ export default function ChatBubble({
             {buttons.map((btn, idx) => (
               <button
                 key={idx}
-                onClick={() => onButtonClick?.(btn.payload)}
-                className="px-3 py-1 text-xs font-medium rounded-full border border-current opacity-60 hover:opacity-100 transition-opacity"
+                onClick={() => onButtonClick?.(btn.payload, btn.title)}
+                className="px-3 py-1 text-xs font-medium rounded-full border border-current opacity-80 hover:opacity-100 transition-opacity"
               >
                 {btn.title}
               </button>

@@ -52,16 +52,30 @@ function getSessionSubject(params: {
 
 export function resolveSafeRedirect(url: string, baseUrl: string): string {
   const normalizedBaseUrl = baseUrl.trim().replace(/\/$/, "");
+  const fallbackSignInUrl = `${normalizedBaseUrl}/signin`;
+
+  const normalizeRelativeTarget = (target: string): string => {
+    if (!target.startsWith("/")) {
+      return normalizedBaseUrl;
+    }
+
+    if (target.startsWith("//")) {
+      return normalizedBaseUrl;
+    }
+
+    if (target.startsWith("/api/auth/error") || target.startsWith("/auth/error")) {
+      return fallbackSignInUrl;
+    }
+
+    return `${normalizedBaseUrl}${target}`;
+  };
 
   if (!url) {
     return normalizedBaseUrl;
   }
 
   if (url.startsWith("/")) {
-    if (url.startsWith("//")) {
-      return normalizedBaseUrl;
-    }
-    return `${normalizedBaseUrl}${url}`;
+    return normalizeRelativeTarget(url);
   }
 
   try {
@@ -78,6 +92,9 @@ export function resolveSafeRedirect(url: string, baseUrl: string): string {
     }
 
     if (allowedOrigins.has(target.origin)) {
+      if (target.pathname.startsWith("/api/auth/error") || target.pathname.startsWith("/auth/error")) {
+        return fallbackSignInUrl;
+      }
       return target.toString();
     }
   } catch {
@@ -93,7 +110,21 @@ export const authConfig = {
     async redirect({ url, baseUrl }) {
       return resolveSafeRedirect(url, baseUrl);
     },
-    async jwt({ token, account }) {
+    async jwt({ token, account, profile }) {
+      // On every fresh sign-in, lock token.sub to the Keycloak user UUID sourced
+      // directly from the ID-token claims (profile.sub). This is the only stable
+      // identifier: account.providerAccountId and NextAuth's own token.sub can
+      // both drift between sign-ins in NextAuth v5 beta.
+      if (account && profile) {
+        const keycloakSub =
+          typeof (profile as Record<string, unknown>).sub === "string"
+            ? ((profile as Record<string, unknown>).sub as string).trim()
+            : null;
+        if (keycloakSub) {
+          token.sub = keycloakSub;
+        }
+      }
+
       const sessionSubject = getSessionSubject({
         tokenSub: typeof token.sub === "string" ? token.sub : null,
         accountProviderAccountId:

@@ -12,8 +12,13 @@ export function ThreadName() {
     const getCurrentThreadName = React.useCallback(async () => {
       if (!currentThreadId) return "No Thread Selected";
       try {
-        const res = await fetch(`/api/threads`);
-        if (!res.ok) throw new Error("Failed to fetch thread name");
+        const res = await fetch(`/api/threads`, { cache: "no-store" });
+        if (!res.ok) {
+          if (res.status === 401 || res.status === 403) {
+            return "No Thread Selected";
+          }
+          throw new Error("Failed to fetch thread name");
+        }
         const data = (await res.json()) as ThreadListResponse;
         const thread = (data.results || []).find((t) => t.id === currentThreadId);
         return thread?.name || "Unnamed Thread";

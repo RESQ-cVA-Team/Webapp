@@ -17,5 +17,6 @@ export const authBaseConfig = {
   secret: process.env.NEXTAUTH_SECRET,
   pages: {
     signIn: "/signin",
+    error: "/auth/error",
   },
 } satisfies NextAuthConfig;

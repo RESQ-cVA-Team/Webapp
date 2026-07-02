@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { getRasaUrlForRequest, withRasaAuth } from "@/lib/rasaConfig";
+import { fetchRasaTrackerEvents, mapRasaTrackerEvents } from "@/lib/rasaHistory";
 import { putUserAccessToken } from "@/lib/userTokenVault";
 import { buildRasaSenderId } from "@/lib/rasaSender";
-import { publishToSender } from "@/lib/sseBus";
-import { touchThreadForUser } from "@/lib/threadRegistryStore";
+import { publishCommittedHistoryItems, setCommittedCursorFloor } from "@/lib/sseBus";
 import {
   createTraceErrorResponse,
   createTraceLogContext,
@@ -15,39 +15,6 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 600;
-
-function publishRasaStreamChunk(senderId: string, chunk: string): number {
-  let published = 0;
-  const lines = chunk.split(/\r?\n/);
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-
-    try {
-      const payload = JSON.parse(trimmed) as unknown;
-
-      if (Array.isArray(payload)) {
-        for (const item of payload) {
-          publishToSender(senderId, item);
-          published += 1;
-        }
-        continue;
-      }
-
-      publishToSender(senderId, payload);
-      published += 1;
-    } catch (error) {
-      console.warn("[rasa] Failed to parse upstream message chunk", {
-        senderId,
-        line: trimmed,
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
-  }
-
-  return published;
-}
 
 export async function POST(req: NextRequest) {
   const traceId = readTraceId(req.headers);
@@ -70,24 +37,13 @@ export async function POST(req: NextRequest) {
     const userSub = String(session.user.id);
     const body = await req.json();
     const message = typeof body?.message === "string" ? body.message : "";
-    const providedMetadata = body?.metadata && typeof body.metadata === "object"
-      ? body.metadata as Record<string, unknown>
-      : null;
+    const uiDisplayText =
+      typeof body?.uiDisplayText === "string" && body.uiDisplayText.trim().length > 0
+        ? body.uiDisplayText
+        : null;
     const rawThreadId = body?.threadId;
     const threadId = typeof rawThreadId === "number" && Number.isFinite(rawThreadId) ? rawThreadId : null;
     const senderId = buildRasaSenderId(userSub, threadId);
-
-    if (typeof threadId === "number") {
-      try {
-        await touchThreadForUser(userSub, threadId);
-      } catch (error) {
-        console.warn("[rasa] Failed to touch thread before forwarding chat request", createTraceLogContext(traceId, {
-          senderId,
-          threadId,
-          error: error instanceof Error ? error.message : String(error),
-        }));
-      }
-    }
 
     const tokenPayload = {
       accessToken: String(session.accessToken),
@@ -121,6 +77,19 @@ export async function POST(req: NextRequest) {
       : null;
     const upstreamUrl = `${apiUrl}/webhooks/rest/webhook?stream=true`;
 
+    // Snapshot tracker state before the upstream call so we can publish only
+    // newly committed events afterwards.
+    const baselineTracker = await fetchRasaTrackerEvents(apiUrl, senderId);
+    if (baselineTracker.error) {
+      console.error("[rasa][post] Failed to read baseline tracker", createTraceLogContext(traceId, {
+        requestId, senderId, threadId, rasaUrl: apiUrl,
+        status: baselineTracker.status, error: baselineTracker.error,
+      }));
+      return createTraceErrorResponse("Failed to read Rasa tracker", 502, traceId);
+    }
+    const baselineEventIndex = baselineTracker.events.length - 1;
+    setCommittedCursorFloor(senderId, baselineEventIndex);
+
     console.info("[rasa][post] Forwarding chat request", createTraceLogContext(traceId, {
       requestId,
       senderId,
@@ -135,27 +104,19 @@ export async function POST(req: NextRequest) {
 
     let rasaStreamRes: Response;
     try {
+      const requestMetadata: Record<string, unknown> = {
+        ...(callbackUrl ? { callback_url: callbackUrl } : {}),
+        ...(traceId ? { trace_id: traceId } : {}),
+        ...(uiDisplayText ? { ui_display_text: uiDisplayText } : {}),
+      };
+
       rasaStreamRes = await fetch(withRasaAuth(`${apiUrl}/webhooks/rest/webhook?stream=true`), {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           sender: senderId,
           message,
-          ...(callbackUrl
-            ? {
-                metadata: {
-                  ...(providedMetadata ?? {}),
-                  callback_url: callbackUrl,
-                  ...(traceId ? { trace_id: traceId } : {}),
-                },
-              }
-            : providedMetadata
-              ? {
-                  metadata: providedMetadata,
-                }
-              : {}),
+          ...(Object.keys(requestMetadata).length > 0 ? { metadata: requestMetadata } : {}),
         }),
       });
     } catch (error) {
@@ -192,40 +153,40 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    let publishedMessages = 0;
-    const reader = rasaStreamRes.body?.getReader();
-
-    if (reader) {
-      const decoder = new TextDecoder();
-      let buffer = "";
-
+    // Drain the upstream stream body (Rasa requires it to be consumed even
+    // when a callback URL is configured, otherwise the connection stalls).
+    if (rasaStreamRes.body) {
+      const reader = rasaStreamRes.body.getReader();
       while (true) {
-        const { done, value } = await reader.read();
+        const { done } = await reader.read();
         if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split(/\r?\n/);
-        buffer = lines.pop() ?? "";
-
-        publishedMessages += publishRasaStreamChunk(senderId, lines.join("\n"));
-      }
-
-      buffer += decoder.decode();
-      if (buffer.trim()) {
-        publishedMessages += publishRasaStreamChunk(senderId, buffer);
-      }
-    } else {
-      const bodyText = await rasaStreamRes.text();
-      if (bodyText.trim()) {
-        publishedMessages += publishRasaStreamChunk(senderId, bodyText);
       }
     }
 
-    console.info("[rasa][post] Published upstream messages to SSE", createTraceLogContext(traceId, {
+    // Snapshot committed tracker state and publish only new items.
+    const committedTracker = await fetchRasaTrackerEvents(apiUrl, senderId);
+    if (committedTracker.error) {
+      console.error("[rasa][post] Failed to read committed tracker after upstream", createTraceLogContext(traceId, {
+        requestId, senderId, threadId, rasaUrl: apiUrl,
+        status: committedTracker.status, error: committedTracker.error,
+      }));
+      return createTraceErrorResponse("Failed to read committed Rasa tracker", 502, traceId);
+    }
+
+    const committedItems = mapRasaTrackerEvents(committedTracker.events, true);
+    const publishedMessages = publishCommittedHistoryItems(senderId, committedItems, {
+      minEventIndexExclusive: baselineEventIndex,
+      source: "rasa-webhook",
+      traceId,
+    });
+
+    console.info("[rasa][post] Published committed tracker messages to SSE", createTraceLogContext(traceId, {
       requestId,
       senderId,
       threadId,
       upstreamUrl,
+      baselineEventIndex,
+      trackerEvents: committedTracker.events.length,
       publishedMessages,
     }));
 

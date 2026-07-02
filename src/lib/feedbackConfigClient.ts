@@ -14,10 +14,23 @@ export type FeedbackConfigResponse = {
 };
 
 const FEEDBACK_CONFIG_TTL_MS = 30_000;
+const DEFAULT_FEEDBACK_CONFIG: FeedbackConfigResponse = {
+  enabled: false,
+  adminEnabled: false,
+  canViewAdmin: false,
+  captureConversationContext: false,
+  commentMaxLength: 0,
+  disclosure: "",
+  issues: [],
+};
 
 let cachedValue: FeedbackConfigResponse | null = null;
 let cachedAt = 0;
 let inflightPromise: Promise<FeedbackConfigResponse> | null = null;
+
+function isAuthStatus(status: number): boolean {
+  return status === 401 || status === 403;
+}
 
 export async function getFeedbackConfigCached(forceRefresh = false): Promise<FeedbackConfigResponse> {
   const now = Date.now();
@@ -37,7 +50,14 @@ export async function getFeedbackConfigCached(forceRefresh = false): Promise<Fee
   })
   .then(async (response) => {
     if (!response.ok) {
-    console.error(`Failed to load feedback config: ${response.status} ${response.statusText}`);
+      if (isAuthStatus(response.status)) {
+        // Before login, /api/feedback/config returns 401/403. Treat this as
+        // a benign "feature unavailable" state instead of an exception.
+        return DEFAULT_FEEDBACK_CONFIG;
+      }
+      if (!isAuthStatus(response.status)) {
+        console.error(`Failed to load feedback config: ${response.status} ${response.statusText}`);
+      }
       throw new Error(`Failed to load feedback config (${response.status})`);
     }
 
@@ -47,7 +67,9 @@ export async function getFeedbackConfigCached(forceRefresh = false): Promise<Fee
     return payload;
   })
   .catch((error) => {
-    console.error("Error fetching feedback config:", error);
+    if (!(error instanceof Error && /\(401\)|\(403\)/.test(error.message))) {
+      console.error("Error fetching feedback config:", error);
+    }
     throw error;
   })
   .finally(() => {

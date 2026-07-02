@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { addSubscriberForSender, type SseBusEvent } from "@/lib/sseBus";
+import { getRasaUrlForRequest } from "@/lib/rasaConfig";
+import { fetchRasaTrackerEvents } from "@/lib/rasaHistory";
 import { putUserAccessToken } from "@/lib/userTokenVault";
 import { buildRasaSenderId } from "@/lib/rasaSender";
+import { addSubscriberForSender, setCommittedCursorFloor } from "@/lib/sseBus";
 import { readTraceId } from "@/lib/traceId";
 
 export const runtime = "nodejs";
@@ -45,18 +47,37 @@ export async function GET(req: NextRequest) {
     ...tokenPayload,
   });
 
+  // Seed the committed cursor so new subscribers never replay already-committed events.
+  const cookiesMap = new Map(req.cookies.getAll().map((c) => [c.name, c.value]));
+  const rasaUrl = getRasaUrlForRequest(req.headers, cookiesMap);
+  if (rasaUrl) {
+    try {
+      const tracker = await fetchRasaTrackerEvents(rasaUrl, senderId);
+      if (!tracker.error) {
+        setCommittedCursorFloor(senderId, tracker.events.length - 1);
+      } else {
+        console.warn("[rasa][stream] Failed to seed committed cursor from tracker", {
+          requestId,
+          senderId,
+          status: tracker.status,
+          error: tracker.error,
+        });
+      }
+    } catch (err) {
+      console.warn("[rasa][stream] Tracker cursor seed threw", {
+        requestId,
+        senderId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
   const encoder = new TextEncoder();
   const clientSignal: AbortSignal | undefined = (req as unknown as { signal?: AbortSignal }).signal;
 
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
-      const send = (event: SseBusEvent) => {
-        controller.enqueue(encoder.encode(`id: ${event.id}\n`));
-        const data = JSON.stringify(event.payload ?? {});
-        controller.enqueue(encoder.encode(`data: ${data}\n\n`));
-      };
-
-      const sendRaw = (payload: unknown) => {
+      const send = (payload: unknown) => {
         const data = JSON.stringify(payload ?? {});
         controller.enqueue(encoder.encode(`data: ${data}\n\n`));
       };
@@ -64,7 +85,7 @@ export async function GET(req: NextRequest) {
       const unsubscribe = addSubscriberForSender(senderId, send);
 
       // Initial event so the client knows the stream is live
-      sendRaw({ type: "connected" });
+      send({ type: "connected" });
 
       const keepAlive = setInterval(() => {
         controller.enqueue(encoder.encode(`: keep-alive\n\n`));
