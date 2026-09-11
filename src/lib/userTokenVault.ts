@@ -29,6 +29,23 @@ const USER_TOKEN_VAULT_REDIS_PREFIX = (process.env.USER_TOKEN_VAULT_REDIS_PREFIX
 
 const DEFAULT_TTL_MS = Number(process.env.USER_TOKEN_VAULT_TTL_MS ?? 30 * 60 * 1000);
 
+// Fail at boot, not on a live user's first login -- a bad value here
+// previously only surfaced as a confusing signin redirect loop once
+// someone actually tried to log in.
+if (USER_TOKEN_VAULT_BACKEND !== "memory" && USER_TOKEN_VAULT_BACKEND !== "redis") {
+  throw new Error(`Unsupported USER_TOKEN_VAULT_BACKEND: ${USER_TOKEN_VAULT_BACKEND}`);
+}
+if (USER_TOKEN_VAULT_BACKEND === "redis") {
+  if (!USER_TOKEN_VAULT_REDIS_URL) {
+    throw new Error("USER_TOKEN_VAULT_REDIS_URL must be set when USER_TOKEN_VAULT_BACKEND=redis");
+  }
+  if (!/^[0-9a-fA-F]{64}$/.test((process.env.USER_TOKEN_VAULT_ENCRYPTION_KEY || "").trim())) {
+    throw new Error(
+      "USER_TOKEN_VAULT_ENCRYPTION_KEY must be a 64-character hex string (32 bytes) when USER_TOKEN_VAULT_BACKEND=redis"
+    );
+  }
+}
+
 const globalForUserTokenVault = globalThis as unknown as {
   userTokenBySub?: Map<string, TokenEntry>;
   userTokenVaultRedisClient?: RedisVaultClient;

@@ -69,6 +69,15 @@ const REDIS_CHANNEL_PREFIX = "cva:sse:chan:";
 const REDIS_BUFFER_KEY_PREFIX = "cva:sse:buf:";
 const REDIS_CURSOR_KEY_PREFIX = "cva:sse:cursor:";
 
+// Fail at boot, not on the first live SSE connection that actually needs
+// cross-instance delivery.
+if (SSE_BUS_BACKEND !== "memory" && SSE_BUS_BACKEND !== "redis") {
+  throw new Error(`Unsupported SSE_BUS_BACKEND: ${SSE_BUS_BACKEND}`);
+}
+if (SSE_BUS_BACKEND === "redis" && !SSE_BUS_REDIS_URL) {
+  throw new Error("SSE_BUS_REDIS_URL must be set when SSE_BUS_BACKEND=redis");
+}
+
 function isRedisBackend(): boolean {
   return SSE_BUS_BACKEND === "redis";
 }
