@@ -376,13 +376,13 @@ function collectConfigHealth(): ConfigHealthItem[] {
     detail: rasaToken ? "RASA auth token configured" : "RASA auth token missing",
   });
 
-  const actionServiceClientId = readEnv("ACTION_SERVICE_CLIENT_ID");
+  const actionServiceClientId = readEnv("ACTION_CLIENT_ID");
   items.push({
     key: "action_service_client_id",
     status: actionServiceClientId ? "ok" : "error",
     detail: actionServiceClientId
       ? "Action service-account client ID configured"
-      : "ACTION_SERVICE_CLIENT_ID missing",
+      : "ACTION_CLIENT_ID missing",
   });
 
   items.push({

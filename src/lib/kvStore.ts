@@ -34,6 +34,14 @@ export type KvStore = {
 };
 
 export function createKvStore(options: KvStoreOptions): KvStore {
+  // Fail at boot, not on the first read/write that actually needs Redis.
+  if (options.backend !== "memory" && options.backend !== "redis") {
+    throw new Error(`Unsupported backend: ${options.backend} (${options.globalRedisClientKey})`);
+  }
+  if (options.backend === "redis" && !options.redisUrl) {
+    throw new Error(`Redis URL must be set when backend=redis (${options.globalRedisClientKey})`);
+  }
+
   const globalForKvStore = globalThis as unknown as Record<string, unknown>;
   let redisClientPromise: Promise<RedisKvClient> | null = null;
 

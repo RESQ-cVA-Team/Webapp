@@ -11,7 +11,7 @@ beforeEach(() => {
   process.env.KEYCLOAK_ISSUER = "https://keycloak.test/realms/stroke";
   process.env.KEYCLOAK_CLIENT_ID = "cva";
   process.env.KEYCLOAK_CLIENT_SECRET = "cva-secret";
-  process.env.ACTION_SERVICE_CLIENT_ID = "action-server-service";
+  process.env.ACTION_CLIENT_ID = "action-server-service";
 });
 
 afterEach(() => {
@@ -63,8 +63,8 @@ describe("verifyActionServiceBearer", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("returns false when ACTION_SERVICE_CLIENT_ID isn't configured", async () => {
-    delete process.env.ACTION_SERVICE_CLIENT_ID;
+  it("returns false when ACTION_CLIENT_ID isn't configured", async () => {
+    delete process.env.ACTION_CLIENT_ID;
     const { verifyActionServiceBearer } = await import("@/lib/keycloakIntrospect");
     expect(await verifyActionServiceBearer("Bearer tok")).toBe(false);
     expect(fetchMock).not.toHaveBeenCalled();

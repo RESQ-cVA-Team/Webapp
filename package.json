@@ -22,7 +22,7 @@
     "fuse.js": "^7.4.1",
     "i18next": "^26.3.4",
     "lucide-react": "^1.30.0",
-    "next": "16.3.1",
+    "next": "16.3.4",
     "next-auth": "5.0.0-beta.32",
     "next-themes": "^0.4.6",
     "pg": "^8.20.0",
@@ -46,7 +46,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.3.1",
+    "eslint-config-next": "16.3.4",
     "tailwindcss": "^4",
     "tsx": "^4.23.1",
     "tw-animate-css": "^1.3.0",
@@ -58,10 +58,10 @@
       "@auth/core": "0.41.3",
       "i18next-fs-backend": "2.6.6",
       "lodash": "4.18.0",
-      "postcss": "8.5.18",
+      "postcss": "8.5.28",
       "preact": "10.26.10",
       "react-is": "19.1.0",
-      "sharp": "0.35.0"
+      "sharp": "0.35.4"
     }
   },
   "engines": {

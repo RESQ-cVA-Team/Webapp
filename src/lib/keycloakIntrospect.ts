@@ -46,11 +46,11 @@ function extractBearerToken(authHeader: string | null): string | null {
 // client (client_credentials grant, not a real user) -- this is the only
 // proof of identity the Action-facing endpoints accept; the static
 // ACTION_SERVER_TOKEN/LONG_TASK_CALLBACK_TOKEN shared secrets this replaced
-// have been removed. Returns false (never throws) if ACTION_SERVICE_CLIENT_ID
-// isn't configured -- callers should treat that as an unauthorized request,
-// not a reason to skip the check.
+// have been removed. Returns false (never throws) if ACTION_CLIENT_ID isn't
+// configured -- callers should treat that as an unauthorized request, not a
+// reason to skip the check.
 export async function verifyActionServiceBearer(authHeader: string | null): Promise<boolean> {
-  const expectedClientId = process.env.ACTION_SERVICE_CLIENT_ID?.trim();
+  const expectedClientId = process.env.ACTION_CLIENT_ID?.trim();
   if (!expectedClientId) return false;
 
   const token = extractBearerToken(authHeader);
