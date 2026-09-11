@@ -1,6 +1,12 @@
 import { createHash } from "crypto";
 import type { Session } from "next-auth";
-import { getFeedbackAdminEmails, getFeedbackAdminRoles } from "@/lib/feedbackConfig";
+import { getFeedbackAdminEmails, getFeedbackAdminRoles, isFeedbackAdminEnabled, isMessageFeedbackEnabled } from "@/lib/feedbackConfig";
+
+// Fail at boot when the feature is on but its salt isn't, not on someone's
+// first feedback submission.
+if ((isMessageFeedbackEnabled() || isFeedbackAdminEnabled()) && !process.env.FEEDBACK_REPORTER_SALT?.trim()) {
+  throw new Error("Missing FEEDBACK_REPORTER_SALT environment variable");
+}
 
 function decodeJwtPayload(rawToken: string | null | undefined): Record<string, unknown> | null {
   if (!rawToken) return null;
