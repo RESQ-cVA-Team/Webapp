@@ -120,6 +120,11 @@ function getConfiguredPostgresUrl(): string | null {
   return url.toString();
 }
 
+// Fail at boot on a partial INTERACTION_LOG_DB_* config, not on the first
+// read/write that actually needs the connection -- fully absent config is
+// fine (falls back to local-file storage), only a partial one is an error.
+getConfiguredPostgresUrl();
+
 function getSanitizedPostgresUrl(url: string): string {
   try {
     const parsed = new URL(url);
