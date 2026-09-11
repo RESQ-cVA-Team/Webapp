@@ -86,29 +86,17 @@ describe("userTokenVault (redis backend, encryption at rest)", () => {
     expect(fakeStore.has("cva:user-token:user-3")).toBe(false);
   });
 
-  it("throws when USER_TOKEN_VAULT_ENCRYPTION_KEY is missing", async () => {
+  it("throws at load time when USER_TOKEN_VAULT_ENCRYPTION_KEY is missing", async () => {
     delete process.env.USER_TOKEN_VAULT_ENCRYPTION_KEY;
-    const { putUserTokens } = await freshModule();
 
-    await expect(
-      putUserTokens({
-        sub: "user-4",
-        accessToken: "token",
-        accessTokenExpiresAt: Date.now() + 60_000,
-      })
-    ).rejects.toThrow(/USER_TOKEN_VAULT_ENCRYPTION_KEY/);
+    // Validated eagerly now (fail at boot, not on a live user's first
+    // login) -- the module itself fails to load, not a later call.
+    await expect(freshModule()).rejects.toThrow(/USER_TOKEN_VAULT_ENCRYPTION_KEY/);
   });
 
-  it("throws when USER_TOKEN_VAULT_ENCRYPTION_KEY is not valid 32-byte hex", async () => {
+  it("throws at load time when USER_TOKEN_VAULT_ENCRYPTION_KEY is not valid 32-byte hex", async () => {
     process.env.USER_TOKEN_VAULT_ENCRYPTION_KEY = "not-hex-and-wrong-length";
-    const { putUserTokens } = await freshModule();
 
-    await expect(
-      putUserTokens({
-        sub: "user-5",
-        accessToken: "token",
-        accessTokenExpiresAt: Date.now() + 60_000,
-      })
-    ).rejects.toThrow(/USER_TOKEN_VAULT_ENCRYPTION_KEY/);
+    await expect(freshModule()).rejects.toThrow(/USER_TOKEN_VAULT_ENCRYPTION_KEY/);
   });
 });
