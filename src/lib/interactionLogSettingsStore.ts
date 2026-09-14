@@ -152,7 +152,7 @@ export function getInteractionLogStorageInfo(): StorageInfo {
   return {
     kind: "local-file",
     description: localPath,
-    warning: `Interaction log storage is using the local file fallback at ${localPath}. This is fine for testing, but configure INTERACTION_LOG_DATABASE_URL or INTERACTION_LOG_DB_* for a shared/production environment.`,
+    warning: `Interaction log storage is using the local file fallback at ${localPath}. This is fine for a single instance, but if more than one Webapp instance is running, each has its own separate file -- settings changes will only apply to whichever instance served the request. Configure INTERACTION_LOG_DATABASE_URL or INTERACTION_LOG_DB_* for a shared/production environment.`,
   };
 }
 
