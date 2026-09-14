@@ -27,6 +27,23 @@ export function withRasaAuth(url: string): string {
   return target.toString();
 }
 
+// Additive alongside withRasaAuth's RASA_AUTH_TOKEN query param, not a
+// replacement -- that token proves "a real Webapp instance is calling"
+// (Rasa's global auth-token middleware), this proves "and specifically for
+// this real, currently-authenticated user" once Rasa verifies it. Callers
+// that have no per-user access token (health checks, service-version pings)
+// simply don't set this header.
+export function withUserBearerHeader(
+  headers: HeadersInit | undefined,
+  accessToken: string | null | undefined
+): Headers {
+  const result = new Headers(headers);
+  if (accessToken) {
+    result.set("Authorization", `Bearer ${accessToken}`);
+  }
+  return result;
+}
+
 function normalizeLang(input?: string | null): string | null {
   if (!input) return null;
   const token = input.split(',')[0]?.trim().split(';')[0]?.toLowerCase();

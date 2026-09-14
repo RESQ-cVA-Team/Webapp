@@ -1,4 +1,4 @@
-import { getRasaUrlForRequest, withRasaAuth } from "@/lib/rasaConfig";
+import { getRasaUrlForRequest, withRasaAuth, withUserBearerHeader } from "@/lib/rasaConfig";
 
 export type ThreadRecord = {
   id: number;
@@ -42,6 +42,7 @@ export async function listThreadsFromRasa(params: {
   headers: Headers;
   cookies: Map<string, string>;
   userId: string;
+  accessToken?: string | null;
 }): Promise<ThreadRecord[] | null> {
   const apiUrl = await resolveRasaUrl(params.headers, params.cookies);
   if (!apiUrl) {
@@ -49,6 +50,7 @@ export async function listThreadsFromRasa(params: {
   }
 
   const res = await fetch(withRasaAuth(`${apiUrl}/threads/by-user/${encodeURIComponent(params.userId)}`), {
+    headers: withUserBearerHeader(undefined, params.accessToken),
     cache: "no-store",
   });
   if (!res.ok) {
@@ -67,6 +69,7 @@ export async function getThreadFromRasa(params: {
   cookies: Map<string, string>;
   userId: string;
   threadId: number;
+  accessToken?: string | null;
 }): Promise<ThreadRecord | null> {
   const threads = await listThreadsFromRasa(params);
   if (!threads) {
@@ -80,6 +83,7 @@ export async function createThreadInRasa(params: {
   cookies: Map<string, string>;
   userId: string;
   name?: string;
+  accessToken?: string | null;
 }): Promise<ThreadRecord | null> {
   const apiUrl = await resolveRasaUrl(params.headers, params.cookies);
   if (!apiUrl) {
@@ -87,6 +91,7 @@ export async function createThreadInRasa(params: {
   }
 
   const nextIdRes = await fetch(withRasaAuth(`${apiUrl}/threads/by-user/${encodeURIComponent(params.userId)}/next-id`), {
+    headers: withUserBearerHeader(undefined, params.accessToken),
     cache: "no-store",
   });
   if (!nextIdRes.ok) {
@@ -107,9 +112,7 @@ export async function createThreadInRasa(params: {
 
   const createRes = await fetch(withRasaAuth(`${apiUrl}/threads/${encodeURIComponent(params.userId)}/index-event`), {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: withUserBearerHeader({ "Content-Type": "application/json" }, params.accessToken),
     body: JSON.stringify({
       thread_id: nextId,
       action: "create",
@@ -136,6 +139,7 @@ export async function renameThreadInRasa(params: {
   userId: string;
   threadId: number;
   name: string;
+  accessToken?: string | null;
 }): Promise<ThreadRecord | null> {
   const trimmedName = params.name.trim();
   if (!trimmedName) {
@@ -154,9 +158,7 @@ export async function renameThreadInRasa(params: {
 
   const res = await fetch(withRasaAuth(`${apiUrl}/threads/${encodeURIComponent(params.userId)}/index-event`), {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: withUserBearerHeader({ "Content-Type": "application/json" }, params.accessToken),
     body: JSON.stringify({
       thread_id: params.threadId,
       action: "rename",
@@ -180,6 +182,7 @@ export async function deleteThreadInRasa(params: {
   cookies: Map<string, string>;
   userId: string;
   threadId: number;
+  accessToken?: string | null;
 }): Promise<boolean> {
   const apiUrl = await resolveRasaUrl(params.headers, params.cookies);
   if (!apiUrl) {
@@ -192,7 +195,7 @@ export async function deleteThreadInRasa(params: {
     withRasaAuth(
       `${apiUrl}/threads/${encodeURIComponent(params.userId)}/thread/${encodeURIComponent(String(params.threadId))}`
     ),
-    { method: "DELETE", cache: "no-store" }
+    { method: "DELETE", headers: withUserBearerHeader(undefined, params.accessToken), cache: "no-store" }
   );
 
   return res.ok;

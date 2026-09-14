@@ -30,6 +30,7 @@ declare module "next-auth/jwt" {
     accessTokenRefreshedAt?: number;
     error?: string;
     isFeedbackAdmin?: boolean;
+    idToken?: string;
   }
 }
 
@@ -136,6 +137,16 @@ export const authConfig = {
           ? account.expires_at * 1000
           : Date.now() + 60 * 60 * 1000;
         token.error = undefined;
+        // Kept only to support RP-initiated logout against Keycloak (see
+        // api/auth/keycloak-logout-url) -- signOut() alone only clears this
+        // app's own session, never Keycloak's SSO session, so signing back
+        // in silently reuses it instead of prompting. Never refreshed after
+        // initial sign-in (Keycloak's refresh_token grant doesn't return a
+        // new id_token unless explicitly requested), which is fine -- it's
+        // only ever used as id_token_hint, not as a credential.
+        if (typeof account.id_token === "string") {
+          token.idToken = account.id_token;
+        }
 
         if (sessionSubject && typeof account.access_token === "string") {
           await putUserTokens({

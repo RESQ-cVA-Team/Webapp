@@ -9,6 +9,7 @@ import { SidebarProvider } from '@/components/ui/sidebar';
 import { SideMenu } from '@/components/ui/menus/threadHistoryMenu';
 import { Toaster } from '@/components/ui/sonner';
 import { ThreadProvider } from '@/components/ThreadContext';
+import InteractionLogNoticeBanner from '@/components/interaction-log/interaction-log-notice-banner';
 
 const poppins = Poppins({ subsets: ['latin'], weight: ['300','400','500','600','700'], display: 'swap' });
 
@@ -34,6 +35,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body className="h-screen flex flex-col overflow-hidden">
         <SessionRoot>
           <TopBar />
+          <InteractionLogNoticeBanner />
           <ThreadProvider>
           <SidebarProvider defaultOpen={false} >
               <div className="flex flex-1 overflow-hidden">

@@ -19,8 +19,6 @@ import { collectFeedbackServiceSnapshots } from "@/lib/serviceVersionCollector";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const FEEDBACK_DEBUG_MODE = process.env.NODE_ENV === "development";
-
 type FeedbackRequestBody = {
   threadId?: unknown;
   messageKey?: unknown;
@@ -97,6 +95,7 @@ export async function POST(req: NextRequest) {
     cookies: cookiesMap,
     userId: identity.userId,
     threadId,
+    accessToken: session?.accessToken,
   });
 
   let historyResult:
@@ -110,7 +109,6 @@ export async function POST(req: NextRequest) {
         cookies: new Map(cookieStore.getAll().map((cookie) => [cookie.name, cookie.value])),
         userSub: identity.userId,
         threadId,
-        includeDebugMetadata: FEEDBACK_DEBUG_MODE,
       });
     } catch (error) {
       console.error("Failed to capture feedback conversation context", error);

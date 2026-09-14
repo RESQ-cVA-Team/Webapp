@@ -22,10 +22,9 @@ const ORIGINAL_ENV = {
   RASA_URL_LIST: process.env.RASA_URL_LIST,
   RASA_PROXY_TARGETS: process.env.RASA_PROXY_TARGETS,
   RASA_AUTH_TOKEN: process.env.RASA_AUTH_TOKEN,
-  ACTION_SERVER_TOKEN: process.env.ACTION_SERVER_TOKEN,
+  ACTION_CLIENT_ID: process.env.ACTION_CLIENT_ID,
   KEYCLOAK_ISSUER: process.env.KEYCLOAK_ISSUER,
   KEYCLOAK_CLIENT_ID: process.env.KEYCLOAK_CLIENT_ID,
-  CVA_BASE_URL: process.env.CVA_BASE_URL,
   WEBAPP_VERSION_URL: process.env.WEBAPP_VERSION_URL,
   ACTION_VERSION_URL: process.env.ACTION_VERSION_URL,
 };
@@ -37,10 +36,9 @@ function setCommonEnv() {
     analytics: "https://analytics.example.com",
   });
   process.env.RASA_AUTH_TOKEN = "rasa-token";
-  process.env.ACTION_SERVER_TOKEN = "action-token";
+  process.env.ACTION_CLIENT_ID = "action-service-client";
   process.env.KEYCLOAK_ISSUER = "https://keycloak.example.com/realms/cva";
   process.env.KEYCLOAK_CLIENT_ID = "client-id";
-  process.env.CVA_BASE_URL = "https://cva.example.com";
   process.env.WEBAPP_VERSION_URL = "https://webapp.example.com/version";
   process.env.ACTION_VERSION_URL = "https://action.example.com/version";
   process.env.FEEDBACK_ADMIN_ROLES = "";
@@ -56,10 +54,9 @@ function restoreEnv() {
   process.env.RASA_URL_LIST = ORIGINAL_ENV.RASA_URL_LIST;
   process.env.RASA_PROXY_TARGETS = ORIGINAL_ENV.RASA_PROXY_TARGETS;
   process.env.RASA_AUTH_TOKEN = ORIGINAL_ENV.RASA_AUTH_TOKEN;
-  process.env.ACTION_SERVER_TOKEN = ORIGINAL_ENV.ACTION_SERVER_TOKEN;
+  process.env.ACTION_CLIENT_ID = ORIGINAL_ENV.ACTION_CLIENT_ID;
   process.env.KEYCLOAK_ISSUER = ORIGINAL_ENV.KEYCLOAK_ISSUER;
   process.env.KEYCLOAK_CLIENT_ID = ORIGINAL_ENV.KEYCLOAK_CLIENT_ID;
-  process.env.CVA_BASE_URL = ORIGINAL_ENV.CVA_BASE_URL;
   process.env.WEBAPP_VERSION_URL = ORIGINAL_ENV.WEBAPP_VERSION_URL;
   process.env.ACTION_VERSION_URL = ORIGINAL_ENV.ACTION_VERSION_URL;
 }

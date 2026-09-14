@@ -1,18 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { parseRasaSenderId } from "@/lib/rasaSender";
 import { getUserAccessToken } from "@/lib/userTokenVault";
+import { getJob, touchJob } from "@/lib/jobStore";
+import { verifyActionServiceBearer } from "@/lib/keycloakIntrospect";
 import {
   createTraceLogContext,
   readTraceId,
-  TRACE_ID_HEADER,
   withTraceIdHeaders,
 } from "@/lib/traceId";
 
 const FETCH_TIMEOUT_MS = Number(process.env.RASA_PROXY_TIMEOUT_MS ?? 120000);
-const ACTION_SERVER_TOKEN = process.env.ACTION_SERVER_TOKEN;
 
 type ProxyRequestBody = {
-  senderId?: unknown;
+  jobId?: unknown;
   target?: unknown;
   request?: {
     path: string;
@@ -33,6 +32,23 @@ type ProxyErrorDetails = {
   upstreamContentType?: string | null;
   reason?: string | null;
   principalUserSub?: string | null;
+};
+
+// Restricts not just which upstream host a target can reach (RASA_PROXY_TARGETS
+// below) but which path on it -- request.path was otherwise fully caller-
+// controlled and forwarded verbatim with the user's real access token
+// attached. Each real target's client only ever calls a small, fixed set of
+// paths (see Action's GraphQLProxyClient/AnalyticsCenterClient) -- a target
+// with no entry here allows nothing, fail closed, rather than silently
+// allowing any path through.
+const ALLOWED_TARGET_PATHS: Record<string, ReadonlySet<string>> = {
+  graphql: new Set(["/api/graphql/aggregation"]),
+  analytics: new Set([
+    "/api/rest/analytics-center/providers",
+    "/api/rest/analytics-center/provider-groups",
+    "/api/rest/analytics-center/myself",
+    "/api/rest/analytics-center/countries",
+  ]),
 };
 
 function getAllowedTargets(): Record<string, string> {
@@ -162,23 +178,16 @@ function createUpstreamFailureResponse(params: {
 export async function POST(req: NextRequest) {
   const traceId = readTraceId(req.headers);
 
-  if (!ACTION_SERVER_TOKEN) {
-    console.error(
-      "[rasa-proxy] Missing ACTION_SERVER_TOKEN environment variable",
-      createTraceLogContext(traceId)
-    );
-    return createProxyErrorResponse("Server misconfiguration", 500, {
-      traceId,
-      reason: "ACTION_SERVER_TOKEN is not configured",
-    });
-  }
-
-  const serviceToken = req.headers.get("x-action-server-token");
-  if (!serviceToken || serviceToken !== ACTION_SERVER_TOKEN) {
+  // Action's own service identity -- a Keycloak client-credentials token,
+  // verified via introspection + azp claim. This is the only proof of
+  // identity this endpoint accepts; the static ACTION_SERVER_TOKEN shared
+  // secret it replaced has been removed.
+  const viaKeycloak = await verifyActionServiceBearer(req.headers.get("authorization"));
+  if (!viaKeycloak) {
     console.warn("[rasa-proxy] Unauthorized request", createTraceLogContext(traceId));
     return createProxyErrorResponse("Unauthorized", 401, {
       traceId,
-      reason: "Missing or invalid x-action-server-token",
+      reason: "Missing or invalid service credentials",
     });
   }
 
@@ -193,43 +202,41 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  const senderId = typeof body?.senderId === "string" ? body.senderId.trim() : null;
+  const jobId = typeof body?.jobId === "string" ? body.jobId.trim() : null;
   const target = typeof body?.target === "string" ? body.target.trim() : null;
   const request = body?.request;
-  if (!senderId || !target || !request?.path) {
+  if (!jobId || !target || !request?.path) {
     console.warn("[rasa-proxy] Invalid proxy request", createTraceLogContext(traceId, {
       target,
       path: request?.path,
-      senderId,
+      hasJobId: Boolean(jobId),
     }));
     return createProxyErrorResponse("Invalid proxy request", 400, {
       traceId,
       target,
       path: request?.path ?? null,
-      reason: "senderId, target, and request.path are required",
+      reason: "jobId, target, and request.path are required",
     });
   }
 
-  const sender = parseRasaSenderId(senderId);
-  if (!sender) {
-    console.warn("[rasa-proxy] Invalid senderId format", createTraceLogContext(traceId, {
-      senderId,
-      target,
-      path: request.path,
-    }));
-    return createProxyErrorResponse("Invalid senderId", 400, {
+  // Identity is always resolved server-side from the jobId Webapp/CVaLab
+  // minted when the turn started -- never from anything the caller supplies.
+  const job = await getJob(jobId);
+  if (!job) {
+    console.warn("[rasa-proxy] Unknown or expired jobId", createTraceLogContext(traceId, { jobId, target }));
+    return createProxyErrorResponse("Unknown or expired job", 401, {
       traceId,
       target,
       path: request.path,
-      reason: "senderId must be '<userSub>' or '<userSub>:thread:<id>'",
+      reason: "jobId did not resolve to an active job",
     });
   }
+  const principalUserSub = job.sub;
+  await touchJob(jobId);
 
-  const principalUserSub = sender.userSub;
   const userAccessToken = await getUserAccessToken(principalUserSub);
   if (!userAccessToken) {
     console.warn("[rasa-proxy] User token unavailable", createTraceLogContext(traceId, {
-      senderId,
       principalUserSub,
     }));
     return createProxyErrorResponse("User token unavailable", 401, {
@@ -250,6 +257,20 @@ export async function POST(req: NextRequest) {
       target,
       path: request.path,
       reason: "Target is not configured in RASA_PROXY_TARGETS",
+    });
+  }
+
+  const allowedPaths = ALLOWED_TARGET_PATHS[target];
+  if (!allowedPaths || !allowedPaths.has(request.path)) {
+    console.warn("[rasa-proxy] Path not allowed for target", createTraceLogContext(traceId, {
+      target,
+      path: request.path,
+    }));
+    return createProxyErrorResponse("Path not allowed for target", 403, {
+      traceId,
+      target,
+      path: request.path,
+      reason: "Requested path is not in this target's allow-list",
     });
   }
 
@@ -276,7 +297,7 @@ export async function POST(req: NextRequest) {
     method,
     path: request.path,
     url,
-    senderId,
+    principalUserSub,
   }));
 
   const controller = new AbortController();
@@ -287,17 +308,16 @@ export async function POST(req: NextRequest) {
     "Content-Type": "application/json",
   }, traceId);
 
+  // Allow-list, not a deny-list: only forward headers this proxy actually
+  // has a reason to pass through. Authorization/trace-id are already set
+  // above from server-side values, never from the caller; nothing today
+  // legitimately needs anything beyond content-type forwarded upstream.
+  const FORWARDABLE_REQUEST_HEADERS = new Set(["content-type"]);
   if (request.headers && typeof request.headers === "object") {
     for (const [key, value] of Object.entries(request.headers)) {
-      const normalizedKey = key.toLowerCase();
-      if (
-        normalizedKey === "authorization" ||
-        normalizedKey === "cookie" ||
-        normalizedKey === TRACE_ID_HEADER
-      ) {
-        continue;
+      if (FORWARDABLE_REQUEST_HEADERS.has(key.toLowerCase())) {
+        outgoingHeaders.set(key, value);
       }
-      outgoingHeaders.set(key, value);
     }
   }
 

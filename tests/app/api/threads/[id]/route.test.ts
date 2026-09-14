@@ -102,7 +102,25 @@ describe("PATCH /api/threads/[id]", () => {
       userId: "user-1",
       threadId: 1,
       name: "Renamed thread",
+      accessToken: undefined,
     });
+  });
+
+  it("forwards the session's accessToken so Rasa's Phase 2 verification can match it", async () => {
+    authMock.mockResolvedValue({ accessToken: "tok", user: { id: "user-1" } });
+    renameThreadInRasaMock.mockResolvedValue({ id: 1, name: "Renamed thread" });
+
+    await PATCH(
+      new NextRequest("http://localhost/api/threads/1", {
+        method: "PATCH",
+        body: JSON.stringify({ name: "Renamed thread" }),
+      }),
+      { params: Promise.resolve({ id: "1" }) }
+    );
+
+    expect(renameThreadInRasaMock).toHaveBeenCalledWith(
+      expect.objectContaining({ accessToken: "tok" })
+    );
   });
 });
 
@@ -149,6 +167,21 @@ describe("DELETE /api/threads/[id]", () => {
       cookies: expect.any(Map),
       userId: "user-1",
       threadId: 1,
+      accessToken: undefined,
     });
+  });
+
+  it("forwards the session's accessToken so Rasa's Phase 2 verification can match it", async () => {
+    authMock.mockResolvedValue({ accessToken: "tok", user: { id: "user-1" } });
+    deleteThreadInRasaMock.mockResolvedValue(true);
+
+    await DELETE(
+      new NextRequest("http://localhost/api/threads/1", { method: "DELETE" }),
+      { params: Promise.resolve({ id: "1" }) }
+    );
+
+    expect(deleteThreadInRasaMock).toHaveBeenCalledWith(
+      expect.objectContaining({ accessToken: "tok" })
+    );
   });
 });

@@ -29,6 +29,16 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   output: 'standalone',
+  // Next's own require-hook resolves @swc/helpers' ESM interop files
+  // (esm/_interop_require_default.js etc.) at runtime, but the standalone
+  // build's file tracer only follows the CJS branch of @swc/helpers'
+  // conditional exports -- the ESM files never get copied into
+  // .next/standalone, so the container crashes with MODULE_NOT_FOUND on
+  // startup. Force the whole package in regardless of what static tracing
+  // determines is needed.
+  outputFileTracingIncludes: {
+    "**/*": ["./node_modules/@swc/helpers/**/*"],
+  },
   async headers() {
     return [
       {

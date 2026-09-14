@@ -10,8 +10,6 @@ import { buildRasaSenderId } from "@/lib/rasaSender";
 import { getThreadFromRasa } from "@/lib/rasaThreadIndex";
 import { readTraceId } from "@/lib/traceId";
 
-const CHAT_DEBUG_MODE = process.env.NODE_ENV === "development";
-
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -53,6 +51,7 @@ export async function GET(req: NextRequest) {
       cookies: cookiesMap,
       userId: userSub,
       threadId,
+      accessToken: session?.accessToken,
     });
     if (!thread) {
       console.warn("[rasa][history] Thread not found for request", {
@@ -88,7 +87,10 @@ export async function GET(req: NextRequest) {
       cookies: cookiesMap,
       userSub,
       threadId,
-      includeDebugMetadata: CHAT_DEBUG_MODE,
+      // Webapp's own UI no longer renders this (debug tooltip/context-menu were
+      // removed in favor of CVaLab), but CVaLab's scenario runner reads this
+      // same endpoint and needs it unconditionally -- see CVaLab/server/native_runner.ts.
+      includeDebugMetadata: true,
     });
   } catch (error) {
     console.error("[rasa][history] Failed to fetch Rasa history", {

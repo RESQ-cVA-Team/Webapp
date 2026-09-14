@@ -59,7 +59,19 @@ describe("GET /api/threads", () => {
       headers: expect.any(Headers),
       cookies: expect.any(Map),
       userId: "user-1",
+      accessToken: undefined,
     });
+  });
+
+  it("forwards the session's accessToken so Rasa's Phase 2 verification can match it", async () => {
+    authMock.mockResolvedValue({ accessToken: "tok", user: { id: "user-1" } });
+    listThreadsFromRasaMock.mockResolvedValue([]);
+
+    await GET();
+
+    expect(listThreadsFromRasaMock).toHaveBeenCalledWith(
+      expect.objectContaining({ accessToken: "tok" })
+    );
   });
 });
 
@@ -90,6 +102,23 @@ describe("POST /api/threads", () => {
       cookies: expect.any(Map),
       userId: "user-1",
       name: "My thread",
+      accessToken: undefined,
     });
+  });
+
+  it("forwards the session's accessToken so Rasa's Phase 2 verification can match it", async () => {
+    authMock.mockResolvedValue({ accessToken: "tok", user: { id: "user-1" } });
+    createThreadInRasaMock.mockResolvedValue({ id: 2, name: "My thread" });
+
+    const request = new NextRequest("http://localhost/api/threads", {
+      method: "POST",
+      body: JSON.stringify({ name: "My thread" }),
+    });
+
+    await POST(request);
+
+    expect(createThreadInRasaMock).toHaveBeenCalledWith(
+      expect.objectContaining({ accessToken: "tok" })
+    );
   });
 });

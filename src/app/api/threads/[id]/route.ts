@@ -49,6 +49,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     userId,
     threadId,
     name,
+    accessToken: session?.accessToken,
   });
   if (!updated) {
     return NextResponse.json({ message: "Thread not found" }, { status: 404 });
@@ -81,6 +82,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     cookies: cookiesMap,
     userId,
     threadId,
+    accessToken: session?.accessToken,
   });
   if (!deleted) {
     return NextResponse.json({ message: "Thread not found" }, { status: 404 });

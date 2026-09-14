@@ -25,6 +25,11 @@ vi.mock("@/lib/userTokenVault", () => ({ putUserTokens: putUserTokensMock }));
 vi.mock("@/lib/rasaConfig", () => ({
   getRasaUrlForRequest: getRasaUrlForRequestMock,
   withRasaAuth: withRasaAuthMock,
+  withUserBearerHeader: (headers: HeadersInit | undefined, accessToken: string | null | undefined) => {
+    const result = new Headers(headers);
+    if (accessToken) result.set("Authorization", `Bearer ${accessToken}`);
+    return result;
+  },
 }));
 vi.mock("@/lib/rasaSender", () => ({
   buildRasaSenderId: (userSub: string, threadId: number | null) =>
@@ -156,9 +161,12 @@ describe("POST /api/rasa", () => {
     expect(res.status).toBe(200);
     const call = fetchMock.mock.calls[0];
     expect(call?.[0]).toBe("http://rasa:5005/webhooks/rest/webhook?stream=true");
-    const init = call?.[1] as { body?: string; method?: string; headers?: Record<string, string> };
+    const init = call?.[1] as { body?: string; method?: string; headers?: Headers };
     expect(init.method).toBe("POST");
-    expect(init.headers).toEqual({ "Content-Type": "application/json" });
+    expect(init.headers?.get("Content-Type")).toBe("application/json");
+    // Session has a real accessToken ("tok") in this test, so the user's
+    // Keycloak token should ride alongside RASA_AUTH_TOKEN as a Bearer header.
+    expect(init.headers?.get("Authorization")).toBe("Bearer tok");
 
     const upstreamBody = JSON.parse(init.body || "{}");
     expect(upstreamBody.sender).toBe("u1:thread:1");

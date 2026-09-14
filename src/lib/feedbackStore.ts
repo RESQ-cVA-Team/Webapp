@@ -162,6 +162,11 @@ function getConfiguredPostgresUrl(): string | null {
   return url.toString();
 }
 
+// Fail at boot on a partial FEEDBACK_DB_* config, not on the first feedback
+// read/write that actually needs the connection -- fully absent config is
+// fine (falls back to local-file storage), only a partial one is an error.
+getConfiguredPostgresUrl();
+
 function getSanitizedPostgresUrl(url: string): string {
   try {
     const parsed = new URL(url);
@@ -189,7 +194,7 @@ export function getFeedbackStorageInfo(): FeedbackStorageInfo {
   return {
     kind: "local-file",
     description: localPath,
-    warning: `Feedback storage is using the local file fallback at ${localPath}. This is fine for testing, but configure FEEDBACK_DATABASE_URL or FEEDBACK_DB_* for production or shared environments.`,
+    warning: `Feedback storage is using the local file fallback at ${localPath}. This is fine for a single instance, but if more than one Webapp instance is running, each has its own separate file -- feedback and admin actions will be inconsistent depending on which instance served the request. Configure FEEDBACK_DATABASE_URL or FEEDBACK_DB_* for production or any multi-instance environment.`,
   };
 }
 

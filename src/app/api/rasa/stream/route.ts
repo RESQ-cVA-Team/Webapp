@@ -54,7 +54,7 @@ export async function GET(req: NextRequest) {
     try {
       const tracker = await fetchRasaTrackerEvents(rasaUrl, senderId);
       if (!tracker.error) {
-        setCommittedCursorFloor(senderId, tracker.events.length - 1);
+        await setCommittedCursorFloor(senderId, tracker.events.length - 1);
       } else {
         console.warn("[rasa][stream] Failed to seed committed cursor from tracker", {
           requestId,
@@ -76,24 +76,20 @@ export async function GET(req: NextRequest) {
   const clientSignal: AbortSignal | undefined = (req as unknown as { signal?: AbortSignal }).signal;
 
   const stream = new ReadableStream<Uint8Array>({
-    start(controller) {
+    async start(controller) {
       const send = (payload: unknown) => {
         const data = JSON.stringify(payload ?? {});
         controller.enqueue(encoder.encode(`data: ${data}\n\n`));
       };
 
-      const unsubscribe = addSubscriberForSender(senderId, send);
-
-      // Initial event so the client knows the stream is live
-      send({ type: "connected" });
-
-      const keepAlive = setInterval(() => {
-        controller.enqueue(encoder.encode(`: keep-alive\n\n`));
-      }, 5000); //reduced from 25s to 10s to keep SSE alive
+      let unsubscribe: (() => void) | null = null;
+      let keepAlive: ReturnType<typeof setInterval> | null = null;
+      let aborted = false;
 
       const cleanup = () => {
-        clearInterval(keepAlive);
-        unsubscribe();
+        aborted = true;
+        if (keepAlive) clearInterval(keepAlive);
+        if (unsubscribe) unsubscribe();
         console.info("[rasa][stream] Closing SSE subscription", {
           requestId,
           threadId,
@@ -107,9 +103,27 @@ export async function GET(req: NextRequest) {
         }
       };
 
+      // Registered before the (now async) subscribe call so an abort that
+      // races ahead of it is still caught -- see the `aborted` check below.
       if (clientSignal) {
         clientSignal.addEventListener("abort", cleanup, { once: true });
       }
+
+      unsubscribe = await addSubscriberForSender(senderId, send);
+      if (aborted) {
+        // Client already disconnected while the subscribe call was still
+        // in flight (relevant now that it can await a Redis round-trip) --
+        // clean up immediately rather than leaving a dangling subscriber.
+        unsubscribe();
+        return;
+      }
+
+      // Initial event so the client knows the stream is live
+      send({ type: "connected" });
+
+      keepAlive = setInterval(() => {
+        controller.enqueue(encoder.encode(`: keep-alive\n\n`));
+      }, 5000); //reduced from 25s to 10s to keep SSE alive
     },
   });
 

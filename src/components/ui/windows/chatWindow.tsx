@@ -8,7 +8,6 @@ import {
   isVisualizationPlanMessageDTO,
   isVisualizationResponseDTO,
   resolveVisualizationTraceId,
-  type VisualizationPlanMessageDTO,
 } from "@/models/dto/response";
 import { useSettingsStore } from "@/store/useSettingsStore";
 import { useTranslation } from "react-i18next";
@@ -24,7 +23,7 @@ type Message = {
   sender: "user" | "other";
   content: string;
   rawContent?: string;
-  kind?: "normal" | "progress" | "plan";
+  kind?: "normal" | "progress";
   feedbackKey?: string;
   feedback?: {
     submitted: boolean;
@@ -80,20 +79,6 @@ type HistoryApiResponse = {
   status?: number;
 };
 
-const PLAN_CHAT_DEBUG_MODE = process.env.NODE_ENV === "development";
-
-function createPlanDebugKey(plan: VisualizationPlanMessageDTO, traceId: string | null): string | null {
-  if (traceId) {
-    return `trace:${traceId}`;
-  }
-
-  try {
-    return `plan:${JSON.stringify(plan.plan)}`;
-  } catch {
-    return null;
-  }
-}
-
 function getCustomProgressText(custom: unknown): string | null {
   if (!custom || typeof custom !== "object") {
     return null;
@@ -112,50 +97,7 @@ function isMessageButton(value: unknown): value is { title: string; payload: str
   );
 }
 
-function formatPlanDebugMessage(plan: VisualizationPlanMessageDTO, traceId: string | null): string {
-  const normalizedPlan: VisualizationPlanMessageDTO = {
-    ...plan,
-    ...(traceId && !plan.trace_id ? { trace_id: traceId } : {}),
-  };
-
-  let payload = "";
-  try {
-    payload = JSON.stringify(normalizedPlan, null, 2);
-  } catch {
-    payload = "{\n  \"error\": \"Failed to serialize visualization plan payload\"\n}";
-  }
-
-  return ["[dev] Visualization plan payload", payload].join("\n");
-}
-
-function createPlanDebugEntry(
-  plan: VisualizationPlanMessageDTO,
-  traceId: string | null,
-  seenPlanKeys: Set<string>
-): Message | null {
-  if (!PLAN_CHAT_DEBUG_MODE) {
-    return null;
-  }
-
-  const planKey = createPlanDebugKey(plan, traceId);
-  if (!planKey || seenPlanKeys.has(planKey)) {
-    return null;
-  }
-
-  seenPlanKeys.add(planKey);
-
-  return {
-    id: crypto.randomUUID(),
-    sender: "other",
-    kind: "plan",
-    content: formatPlanDebugMessage(plan, traceId),
-    debug: {
-      source: "visualization-plan",
-    },
-  };
-}
-
-function mapHistoryItems(items: unknown[], seenPlanKeys: Set<string>): { mapped: Message[]; customPayloads: unknown[] } {
+function mapHistoryItems(items: unknown[]): { mapped: Message[]; customPayloads: unknown[] } {
   const customPayloads: unknown[] = [];
   const mapped = items.flatMap((item): Message[] => {
     const candidate = item as HistoryResponseItem;
@@ -165,14 +107,6 @@ function mapHistoryItems(items: unknown[], seenPlanKeys: Set<string>): { mapped:
 
     if (candidate.custom && typeof candidate.custom === "object") {
       customPayloads.push(candidate.custom);
-
-      if (candidate.role === "assistant" && isVisualizationPlanMessageDTO(candidate.custom)) {
-        const traceId = resolveVisualizationTraceId(candidate.custom);
-        const planMessage = createPlanDebugEntry(candidate.custom, traceId, seenPlanKeys);
-        if (planMessage) {
-          messages.push(planMessage);
-        }
-      }
     }
 
     const normalizedButtons = Array.isArray(candidate.buttons)
@@ -207,7 +141,7 @@ function mapHistoryItems(items: unknown[], seenPlanKeys: Set<string>): { mapped:
   return { mapped, customPayloads };
 }
 
-async function fetchThreadHistory(threadId: number, seenPlanKeys: Set<string>): Promise<{
+async function fetchThreadHistory(threadId: number): Promise<{
   mapped: Message[];
   customPayloads: unknown[];
   error: string | null;
@@ -234,7 +168,7 @@ async function fetchThreadHistory(threadId: number, seenPlanKeys: Set<string>): 
     };
   }
 
-  const { mapped, customPayloads } = mapHistoryItems(Array.isArray(data?.history) ? data.history : [], seenPlanKeys);
+  const { mapped, customPayloads } = mapHistoryItems(Array.isArray(data?.history) ? data.history : []);
 
   return {
     mapped,
@@ -256,32 +190,19 @@ export default function ChatWindow() {
   const [activeLongActionJobCount, setActiveLongActionJobCount] = useState(0);
   const activeLongActionJobsRef = useRef<Set<string>>(new Set());
   const activeLongActionLockTimersRef = useRef<Map<string, number>>(new Map());
-  const seenPlanMessageKeysRef = useRef<Set<string>>(new Set());
   const seenCommittedEventIndexesRef = useRef<Set<number>>(new Set());
   const language = useSettingsStore((s) => s.language);
   const { t } = useTranslation('common');
   const isChatDisabled = currentThreadId === null;
   const isWaitingForBot = pendingRequests > 0 || activeLongActionJobCount > 0;
 
-  const emitPlanDebugMessage = useCallback((plan: VisualizationPlanMessageDTO, traceId: string | null) => {
-    const planMessage = createPlanDebugEntry(plan, traceId, seenPlanMessageKeysRef.current);
-    if (!planMessage) {
-      return;
-    }
-
-    setMessages((prev) => [...prev, planMessage]);
-  }, []);
-
-  const applyVisualizationFromCustom = useCallback((custom: unknown, options?: { emitPlanMessage?: boolean }) => {
+  const applyVisualizationFromCustom = useCallback((custom: unknown) => {
      const { setVisualization, addToHistory, setSelectedChartIndex, setSelectedStatisticsIndex, rememberVisualizationPlan } = useChatStore.getState();
 
     if (isVisualizationPlanMessageDTO(custom)) {
       const traceId = resolveVisualizationTraceId(custom);
       if (traceId) {
         rememberVisualizationPlan(traceId, custom);
-      }
-      if (options?.emitPlanMessage !== false) {
-        emitPlanDebugMessage(custom, traceId);
       }
       return;
     }
@@ -303,7 +224,7 @@ export default function ChatWindow() {
         setSelectedStatisticsIndex(null);
       }
     }
-  }, [emitPlanDebugMessage]);
+  }, []);
 
   const addMessage = useCallback((payload: unknown) => {
     const obj = payload as HistoryResponseItem | null;
@@ -453,7 +374,6 @@ export default function ChatWindow() {
   };
 
   useEffect(() => {
-    seenPlanMessageKeysRef.current.clear();
     seenCommittedEventIndexesRef.current.clear();
     activeLongActionJobsRef.current.clear();
     for (const timerId of activeLongActionLockTimersRef.current.values()) {
@@ -477,7 +397,7 @@ export default function ChatWindow() {
     async function fetchMessages() {
       setLoading(true);
       try {
-        const { mapped, customPayloads, error, status } = await fetchThreadHistory(threadId, seenPlanMessageKeysRef.current);
+        const { mapped, customPayloads, error, status } = await fetchThreadHistory(threadId);
 
         if (!cancelled) {
           if (error && status !== 404) {
@@ -493,7 +413,7 @@ export default function ChatWindow() {
 
           setMessages(mapped);
           for (const customPayload of customPayloads) {
-            applyVisualizationFromCustom(customPayload, { emitPlanMessage: false });
+            applyVisualizationFromCustom(customPayload);
           }
         }
       } catch (err) {

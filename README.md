@@ -25,12 +25,18 @@ Run instructions for:
 - `ACTION_SERVER_TOKEN` (must match Action)
 - `LONG_TASK_CALLBACK_TOKEN` (must match Action)
 - `RASA_PROXY_TARGETS` (must include `graphql`; usually also `analytics`)
-- `CVA_BASE_URL`
 
 If feedback is enabled:
 
 - `MESSAGE_FEEDBACK_ENABLED=true`
 - `FEEDBACK_REPORTER_SALT` (required)
+
+If interaction logging is enabled (separate, stricter feature -- admin-controlled
+full-turn chat capture for specific real users, see `INTERACTION_LOG_ENABLED`):
+
+- `INTERACTION_LOG_ENABLED=true`
+- `INTERACTION_LOG_ADMIN_EMAILS` and/or `INTERACTION_LOG_ADMIN_ROLES` (at least one required)
+- `INTERACTION_LOG_PSEUDONYM_SALT` (required only if an admin ever enables pseudonymous storage)
 
 ## Development (Dev Container)
 
@@ -67,6 +73,5 @@ docker run --rm -p 3000:3000 \
   -e ACTION_SERVER_TOKEN=<shared-action-token> \
   -e LONG_TASK_CALLBACK_TOKEN=<shared-callback-token> \
   -e RASA_PROXY_TARGETS='{"graphql":"https://<host>","analytics":"https://<host>"}' \
-  -e CVA_BASE_URL=https://<host>/api/rest/cva/v1 \
   ghcr.io/<org>/webapp:latest
 ```

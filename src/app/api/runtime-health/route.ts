@@ -122,12 +122,6 @@ function resolveAnalyticsUrl(): string | null {
   return joinUrl(base, "/api/rest/analytics-center/countries?limit=1&offset=0");
 }
 
-function resolveCvaThreadsUrl(): string | null {
-  const base = readEnv("CVA_BASE_URL");
-  if (!base) return null;
-  return joinUrl(base, "/threads?limit=1");
-}
-
 function resolveKeycloakDiscoveryUrl(): string | null {
   const issuer = readEnv("KEYCLOAK_ISSUER");
   if (!issuer) return null;
@@ -382,11 +376,13 @@ function collectConfigHealth(): ConfigHealthItem[] {
     detail: rasaToken ? "RASA auth token configured" : "RASA auth token missing",
   });
 
-  const actionToken = readEnv("ACTION_SERVER_TOKEN");
+  const actionServiceClientId = readEnv("ACTION_CLIENT_ID");
   items.push({
-    key: "action_server_token",
-    status: actionToken ? "ok" : "error",
-    detail: actionToken ? "Action proxy token configured" : "ACTION_SERVER_TOKEN missing",
+    key: "action_service_client_id",
+    status: actionServiceClientId ? "ok" : "error",
+    detail: actionServiceClientId
+      ? "Action service-account client ID configured"
+      : "ACTION_CLIENT_ID missing",
   });
 
   items.push({
@@ -410,13 +406,6 @@ function collectConfigHealth(): ConfigHealthItem[] {
       keycloakIssuer && keycloakClientId
         ? "Keycloak auth configured"
         : "Keycloak issuer/client ID missing",
-  });
-
-  const cvaBaseUrl = readEnv("CVA_BASE_URL");
-  items.push({
-    key: "cva_base_url",
-    status: cvaBaseUrl ? "ok" : "warning",
-    detail: cvaBaseUrl ? "CVA base URL configured" : "CVA_BASE_URL not set (default fallback in use)",
   });
 
   return items;
@@ -473,7 +462,7 @@ export async function GET() {
         }),
       ];
 
-  const [webapp, action, upstreamGraphql, upstreamAnalytics, upstreamCva, keycloak, ...rasaResults] = await Promise.all([
+  const [webapp, action, upstreamGraphql, upstreamAnalytics, keycloak, ...rasaResults] = await Promise.all([
     probeVersionEndpoint({ key: "webapp", label: "Webapp", url: getWebappVersionUrl() }),
     probeVersionEndpoint({ key: "action", label: "Action", url: readEnv("ACTION_VERSION_URL") }),
     probeExternalGraphql({
@@ -489,12 +478,6 @@ export async function GET() {
       accessToken,
     }),
     probeExternalGet({
-      key: "upstream_cva",
-      label: "CVA API",
-      url: resolveCvaThreadsUrl(),
-      accessToken,
-    }),
-    probeExternalGet({
       key: "keycloak_discovery",
       label: "Keycloak Discovery",
       url: resolveKeycloakDiscoveryUrl(),
@@ -504,7 +487,7 @@ export async function GET() {
 
   const config = collectConfigHealth();
   const services = [webapp, ...rasaResults, action];
-  const external = [upstreamGraphql, upstreamAnalytics, upstreamCva, keycloak];
+  const external = [upstreamGraphql, upstreamAnalytics, keycloak];
   const overall = computeOverall(services, config, external);
 
   const responseBody: RuntimeHealthResponse = canViewFullDiagnostics

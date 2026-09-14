@@ -10,6 +10,10 @@ services:
       - ..:/workspace:cached
       - node_modules:/workspace/node_modules
       - pnpm-store:/workspace/.pnpm-store
+    environment:
+      USER_TOKEN_VAULT_BACKEND: redis
+      USER_TOKEN_VAULT_REDIS_PREFIX: "cva:user-token:"
+      RASA_URL_LIST: '[{"lang":"en","url":"http://host.docker.internal:5005"}]'
     extra_hosts:
       - "host.docker.internal:host-gateway"
 

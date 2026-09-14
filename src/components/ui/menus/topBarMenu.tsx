@@ -13,6 +13,7 @@ import { useTranslation } from "react-i18next";
 import i18n from "../../../i18n";
 import { LANGUAGE_LABELS, SUPPORTED_LANGUAGES } from "@/locales/config";
 import { getFeedbackConfigCached } from "@/lib/feedbackConfigClient";
+import { getInteractionLogConfigCached } from "@/lib/interactionLogConfigClient";
 import { getRuntimeHealthCached, type RuntimeHealthResponse } from "@/lib/runtimeHealthClient";
 
 
@@ -31,6 +32,7 @@ export default function TopBar() {
 	const [botsByLang, setBotsByLang] = useState<Record<string, boolean>>({});
 		const [botLangs, setBotLangs] = useState<string[]>([]);
 	const [canViewFeedbackAdmin, setCanViewFeedbackAdmin] = useState(false);
+	const [canViewInteractionLogAdmin, setCanViewInteractionLogAdmin] = useState(false);
 	const [serviceHealth, setServiceHealth] = useState<RuntimeHealthResponse | null>(null);
 	const [serviceHealthError, setServiceHealthError] = useState<string | null>(null);
 
@@ -80,6 +82,33 @@ export default function TopBar() {
 	useEffect(() => {
 		let cancelled = false;
 
+		getInteractionLogConfigCached()
+			.then((data) => {
+				if (cancelled) return;
+				setCanViewInteractionLogAdmin(data.canViewAdmin === true && data.enabled === true);
+			})
+			.catch((error) => {
+				if (!cancelled) {
+					console.error('Failed to fetch interaction log config:', error);
+					setCanViewInteractionLogAdmin(false);
+				}
+			});
+
+		return () => {
+			cancelled = true;
+		};
+	}, []);
+
+	useEffect(() => {
+		// Admin/dev-only: regular users never had a use for this and shouldn't
+		// even trigger the poll -- see feedback-admin-view.tsx's own
+		// canViewFeedbackAdmin gating for the same identity check.
+		if (!DEV_DIAGNOSTICS && !canViewFeedbackAdmin) {
+			return;
+		}
+
+		let cancelled = false;
+
 		const load = async (forceRefresh = false) => {
 			try {
 				const data = await getRuntimeHealthCached(forceRefresh);
@@ -101,9 +130,9 @@ export default function TopBar() {
 			cancelled = true;
 			clearInterval(intervalId);
 		};
-	}, []);
+	}, [DEV_DIAGNOSTICS, canViewFeedbackAdmin]);
 
-	const showDiagnostics = !!serviceHealth || !!serviceHealthError || DEV_DIAGNOSTICS || canViewFeedbackAdmin;
+	const showDiagnostics = (DEV_DIAGNOSTICS || canViewFeedbackAdmin) && (!!serviceHealth || !!serviceHealthError);
 
 	const healthBadgeClass = (() => {
 		if (!serviceHealth) return "border-slate-500 text-slate-700 dark:text-slate-200";
@@ -177,21 +206,41 @@ export default function TopBar() {
 		}
 	}, [language]);
 
+	// Plain signOut() only clears this app's own session -- Keycloak keeps
+	// its own SSO session alive, so logging back in would silently reuse it
+	// instead of prompting. Fetch the Keycloak end-session URL first (needs
+	// the still-valid session), then clear the local session, then send the
+	// browser there to actually end the Keycloak session too.
+	const handleSignOut = async () => {
+		let keycloakLogoutUrl: string | null = null;
+		try {
+			const res = await fetch("/api/auth/keycloak-logout-url");
+			if (res.ok) {
+				const data = await res.json();
+				keycloakLogoutUrl = typeof data?.url === "string" ? data.url : null;
+			}
+		} catch {
+			// Fall back to local-only sign-out below.
+		}
+		await signOut({ redirect: false });
+		window.location.href = keycloakLogoutUrl || "/";
+	};
+
 	return (
 		<div
 			className="w-full flex items-center justify-between px-4 py-4 border-b h-auto min-h-0 flex-shrink-0 z-10 bg-background"
 			id="sym:TopBar"
 		>
-			<div className="flex items-center gap-2 h-10">
-				<Image 
-					src={dark ? "RESQ+_Logo_White_Yellow-Cross_RGB.svg" : "RESQ+_Logo_Full_Colors_RGB.svg"} 
-					alt={t('topbar.logoAlt')} 
-					width={629} 
+			<Link href="/" className="flex items-center gap-2 h-10" aria-label={t('topbar.logoAlt')}>
+				<Image
+					src={dark ? "/RESQ+_Logo_White_Yellow-Cross_RGB.svg" : "/RESQ+_Logo_Full_Colors_RGB.svg"}
+					alt={t('topbar.logoAlt')}
+					width={629}
 					height={179}
 					priority
-					style={{ height: "200%", width: "auto" }} 
+					style={{ height: "200%", width: "auto" }}
 				/>
-			</div>
+			</Link>
 			<div className="flex items-center gap-4 ">
 				{showDiagnostics ? (
 					<TooltipProvider>
@@ -206,7 +255,7 @@ export default function TopBar() {
 								{serviceHealthError ? <div>Health check failed: {serviceHealthError}</div> : null}
 								{serviceHealth ? (
 									<>
-										<div className="opacity-90 text-xs">Checked: {new Date(serviceHealth.checkedAt).toLocaleTimeString()}</div>
+										<div className="opacity-90 text-xs">Checked: {new Date(serviceHealth.checkedAt).toLocaleTimeString(undefined, { hour12: false })}</div>
 										<div className="space-y-1">
 											<div className="font-medium text-xs uppercase tracking-wide opacity-90">Core services</div>
 											{serviceHealth.services.map((svc) => (
@@ -268,6 +317,11 @@ export default function TopBar() {
 						<Link href="/admin/feedback">Feedback Admin</Link>
 					</Button>
 				) : null}
+				{canViewInteractionLogAdmin ? (
+					<Button variant="outline" className="rounded  hover:bg-black/5 transition-colors" asChild>
+						<Link href="/admin/interaction-log">Interaction Log</Link>
+					</Button>
+				) : null}
 				{/* Language selector */}
 				<Select value={language} onValueChange={(v) => setLanguage(v)}>
 					<SelectTrigger className="w-fit shadow-none hover:bg-black/5" aria-label={t("topbar.language")}>
@@ -306,7 +360,7 @@ export default function TopBar() {
 				<Button variant="ghost" className="border rounded hover:bg-black/75 dark:hover:bg-white hover:text-white transition-colors dark:hover:text-black" onClick={() => setDark(!dark)} aria-label={t('topbar.toggleDarkMode')}>
 					{dark ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
 				</Button>
-				<Button variant="ghost" className="border rounded hover:bg-destructive hover:text-white transition-colors" onClick={() => signOut()} aria-label={t('topbar.logout')}>
+				<Button variant="ghost" className="border rounded hover:bg-destructive hover:text-white transition-colors" onClick={() => void handleSignOut()} aria-label={t('topbar.logout')}>
 					<LogOutIcon className="w-4 h-4" />
 					{t( "topbar.logout")}
 				</Button>

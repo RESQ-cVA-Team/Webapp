@@ -19,6 +19,7 @@ export async function GET() {
     headers: headerStore,
     cookies: new Map(cookieStore.getAll().map((cookie) => [cookie.name, cookie.value])),
     userId,
+    accessToken: session?.accessToken,
   });
   if (!threads) {
     return NextResponse.json({ message: "Rasa thread index unavailable" }, { status: 502 });
@@ -50,6 +51,7 @@ export async function POST(req: NextRequest) {
     cookies: new Map(cookieStore.getAll().map((cookie) => [cookie.name, cookie.value])),
     userId,
     name,
+    accessToken: session?.accessToken,
   });
   if (!thread) {
     return NextResponse.json({ message: "Failed to create thread" }, { status: 502 });

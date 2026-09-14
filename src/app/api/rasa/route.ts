@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { getRasaUrlForRequest, withRasaAuth } from "@/lib/rasaConfig";
+import { getRasaUrlForRequest, withRasaAuth, withUserBearerHeader } from "@/lib/rasaConfig";
 import { fetchRasaTrackerEvents, mapRasaTrackerEvents } from "@/lib/rasaHistory";
 import { putUserTokens } from "@/lib/userTokenVault";
 import { buildRasaSenderId } from "@/lib/rasaSender";
+import { createJob } from "@/lib/jobStore";
 import { publishCommittedHistoryItems, setCommittedCursorFloor } from "@/lib/sseBus";
 import {
   createTraceErrorResponse,
@@ -11,6 +12,7 @@ import {
   readTraceId,
   withTraceIdHeaders,
 } from "@/lib/traceId";
+import { logCompletedTurnIfEnabled } from "@/lib/interactionLogCapture";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -70,17 +72,25 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // No request-header fallback (e.g. x-forwarded-host) -- that value is
+    // caller-controllable and would let a request redirect where its own
+    // callback (including whatever auth it carries) gets delivered. If
+    // CALLBACK_BASE_URL isn't configured, this request simply gets no
+    // callback support; Action already degrades to synchronous execution
+    // when no callback_url is present.
     const baseCallback = process.env.CALLBACK_BASE_URL;
-    const host = req.headers.get("x-forwarded-host") || req.headers.get("host");
-    const proto = req.headers.get("x-forwarded-proto") || "https";
     const callbackBase = baseCallback
       ? `${baseCallback.replace(/\/$/, "")}/api/rasa/long-task-callback`
-      : host
-        ? `${proto}://${host}/api/rasa/long-task-callback`
-        : null;
-    const callbackUrl = callbackBase
-      ? `${callbackBase}?rasaUrl=${encodeURIComponent(apiUrl)}&senderId=${encodeURIComponent(senderId)}${traceId ? `&traceId=${encodeURIComponent(traceId)}` : ""}`
       : null;
+    // The callback URL carries only an opaque jobId, never rasaUrl/senderId
+    // directly -- the long-task-callback route resolves the real identity
+    // server-side via jobStore, rather than trusting whatever a caller
+    // echoes back in the request.
+    let callbackUrl: string | null = null;
+    if (callbackBase) {
+      const jobId = await createJob({ sub: userSub, threadId, rasaUrl: apiUrl });
+      callbackUrl = `${callbackBase}?jobId=${encodeURIComponent(jobId)}${traceId ? `&traceId=${encodeURIComponent(traceId)}` : ""}`;
+    }
     const upstreamUrl = `${apiUrl}/webhooks/rest/webhook?stream=true`;
 
     // Snapshot tracker state before the upstream call so we can publish only
@@ -94,7 +104,7 @@ export async function POST(req: NextRequest) {
       return createTraceErrorResponse("Failed to read Rasa tracker", 502, traceId);
     }
     const baselineEventIndex = baselineTracker.events.length - 1;
-    setCommittedCursorFloor(senderId, baselineEventIndex);
+    await setCommittedCursorFloor(senderId, baselineEventIndex);
 
     console.info("[rasa][post] Forwarding chat request", createTraceLogContext(traceId, {
       requestId,
@@ -119,7 +129,7 @@ export async function POST(req: NextRequest) {
 
       rasaStreamRes = await fetch(withRasaAuth(`${apiUrl}/webhooks/rest/webhook?stream=true`), {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: withUserBearerHeader({ "Content-Type": "application/json" }, session.accessToken),
         body: JSON.stringify({
           sender: senderId,
           message,
@@ -181,10 +191,21 @@ export async function POST(req: NextRequest) {
     }
 
     const committedItems = mapRasaTrackerEvents(committedTracker.events, true);
-    const publishedMessages = publishCommittedHistoryItems(senderId, committedItems, {
+    const publishedMessages = await publishCommittedHistoryItems(senderId, committedItems, {
       minEventIndexExclusive: baselineEventIndex,
       source: "rasa-webhook",
       traceId,
+    });
+
+    void logCompletedTurnIfEnabled({
+      senderId,
+      userSub,
+      userEmail: session.user.email ?? null,
+      userName: session.user.name ?? null,
+      threadId,
+      items: committedItems,
+      traceId: traceId ?? null,
+      source: "sync",
     });
 
     console.info("[rasa][post] Published committed tracker messages to SSE", createTraceLogContext(traceId, {
