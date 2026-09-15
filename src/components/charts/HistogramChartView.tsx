@@ -11,7 +11,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import type { HistogramChartDTO } from "@/models/dto/charts";
-import { getDynamicCategoryTickLayout, trimEmptyEdgeChartPoints } from "@/lib/chart-utils";
+import { getDynamicCategoryTickLayout } from "@/lib/chart-utils";
 import { useElementWidth } from "@/hooks/use-element-width";
 
 interface Props {
@@ -31,10 +31,9 @@ export function HistogramChartView({ chart }: Props) {
     ? chart.metadata?.y_axis?.label ?? "Density / Cumulative"
     : chart.metadata?.y_axis?.label ?? "Frequency";
   
-  const trimmedData = trimEmptyEdgeChartPoints(data, ["value"]);
   const tickLayout = getDynamicCategoryTickLayout({
     chartWidthPx,
-    pointCount: trimmedData.length,
+    pointCount: data.length,
     rotateThresholdPx: 70,
     horizontalMinTickSpacingPx: 10,
     rotatedMinTickSpacingPx: 30,
@@ -47,7 +46,7 @@ export function HistogramChartView({ chart }: Props) {
     <div className="h-full w-full flex flex-col flex-1">
       <h3 className="text-lg font-semibold mb-2 text-primary">{chart.metadata.title}</h3>
       <div ref={chartContainerRef} className="flex-1 min-h-0">
-          <BarChart data={trimmedData} barGap={-0.1} barCategoryGap={-.5} responsive={true} style={{ width: '100%', height: '100%' }}>
+          <BarChart data={data} barGap={-0.1} barCategoryGap={-.5} responsive={true} style={{ width: '100%', height: '100%' }}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis
               dataKey="range"

@@ -12,7 +12,6 @@ import {
 } from "recharts";
 import type { LineChartDTO } from "@/models/dto/charts";
 import {
-  trimEmptyEdgeChartPoints,
   getDynamicCategoryTickLayout,
   getSeriesColor,
   getPointLabelMap,
@@ -39,6 +38,7 @@ export function LineChartView({ chart }: Props) {
   );
 
   const pointLabelMap = getPointLabelMap(chart.series);
+  const isTimeAxis = chart.metadata?.x_axis?.type === "time";
 
   const data = bins.map((bin) => {
     const point: Record<string, number | string | null> = {
@@ -47,19 +47,18 @@ export function LineChartView({ chart }: Props) {
     };
     chart.series.forEach((s) => {
       const val = s.data.find((p) => String(p.x) === String(bin))?.y;
-      point[s.name] = typeof val === "number" && val === 0 ? null : (val ?? null);
+      point[s.name] = isTimeAxis && typeof val === "number" && val === 0 ? null : (val ?? null);
     });
     return point;
   });
-  const trimmedData = trimEmptyEdgeChartPoints(data, seriesNames);
   const tickLayout = getDynamicCategoryTickLayout({
     chartWidthPx,
-    pointCount: trimmedData.length,
-    rotateThresholdPx: 30,
-    horizontalMinTickSpacingPx: 15,
+      pointCount: data.length,
+    rotateThresholdPx: 70,
+    horizontalMinTickSpacingPx: 10,
     rotatedMinTickSpacingPx: 30,
     rotatedAngle: -45,
-    labelHeightBig: 60,
+    labelHeightBig: 70,
     labelHeightSmall: 50,
   });
 
@@ -67,7 +66,7 @@ export function LineChartView({ chart }: Props) {
     <div className="h-full w-full flex flex-col flex-1">
       <h3 className="text-lg font-semibold mb-2 text-primary">{chart.metadata.title}</h3>
       <div ref={chartContainerRef} className="flex-1 min-h-0">
-          <LineChart data={trimmedData} margin={{ top: 20, right: 50, bottom: 0, left: 20 }} responsive={true} style={{ width: '100%', height: '100%' }}>
+          <LineChart data={data} margin={{ top: 20, right: 50, bottom: 0, left: 20 }} responsive={true} style={{ width: '100%', height: '100%' }}>
             <CartesianGrid strokeDasharray="3 3" />
               <XAxis
                 height={tickLayout.height}

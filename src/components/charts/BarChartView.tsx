@@ -11,7 +11,6 @@ import {
 } from "recharts";
 import type { BarChartDTO } from "@/models/dto/charts";
 import {
-  trimEmptyEdgeChartPoints,
   getDynamicCategoryTickLayout,
   getSeriesColor,
   buildNumericBucketLabel,
@@ -62,10 +61,9 @@ export function BarChartView({ chart }: Props) {
     });
     return point;
   });
-  const trimmedData = trimEmptyEdgeChartPoints(data, seriesNames);
   const tickLayout = getDynamicCategoryTickLayout({
     chartWidthPx: chartWidthPx,
-    pointCount: trimmedData.length,
+      pointCount: data.length,
     rotateThresholdPx: 70,
     horizontalMinTickSpacingPx: 10,
     rotatedMinTickSpacingPx: 30,
@@ -81,7 +79,7 @@ export function BarChartView({ chart }: Props) {
     <div className="h-full w-full flex flex-col flex-1">
       <h3 className="text-lg font-semibold mb-2 text-primary">{chart.metadata.title}</h3>
       <div ref={chartContainerRef} className="flex-1 min-h-0">
-          <RCBarChart data={trimmedData} layout={layout} responsive={true} style={{ width: '100%', height: '100%' }}>
+          <RCBarChart data={data} layout={layout} responsive={true} style={{ width: '100%', height: '100%' }}>
             <CartesianGrid strokeDasharray="3 3" />
             {layout === "horizontal" ? (
               <>
