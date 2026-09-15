@@ -132,6 +132,11 @@ function getConfiguredPostgresUrl(): string | null {
   return url.toString();
 }
 
+// Fail at boot on a partial INTERACTION_LOG_DB_* config, not on the first
+// read/write that actually needs the connection -- fully absent config is
+// fine (falls back to local-file storage), only a partial one is an error.
+getConfiguredPostgresUrl();
+
 function getSanitizedPostgresUrl(url: string): string {
   try {
     const parsed = new URL(url);
@@ -159,7 +164,7 @@ export function getInteractionLogEntryStorageInfo(): StorageInfo {
   return {
     kind: "local-file",
     description: localPath,
-    warning: `Interaction log entry storage is using the local file fallback at ${localPath}. This is fine for testing, but configure INTERACTION_LOG_DATABASE_URL or INTERACTION_LOG_DB_* for a shared/production environment.`,
+    warning: `Interaction log entry storage is using the local file fallback at ${localPath}. This is fine for a single instance, but if more than one Webapp instance is running, each has its own separate file -- logged entries will be split across instances instead of shared. Configure INTERACTION_LOG_DATABASE_URL or INTERACTION_LOG_DB_* for a shared/production environment.`,
   };
 }
 
