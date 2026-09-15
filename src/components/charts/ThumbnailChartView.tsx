@@ -62,7 +62,7 @@ export function LineChartThumbnail({ chart }: { chart: LineChartDTO }) {
         {chart.series.map((s, i) => (
           <Line
             key={s.name}
-            type="linear"
+            type={chart.smooth ? "monotone" : "linear"}
             dataKey={s.name}
             stroke={getSeriesColor(i)}
             strokeWidth={2}

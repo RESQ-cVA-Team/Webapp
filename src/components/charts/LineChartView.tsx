@@ -112,19 +112,18 @@ export function LineChartView({ chart }: Props) {
               return (
                 <Line
                   key={s.name}
-                  //type={chart.smooth ? "monotone" : "linear"}
-                  type="linear"
+                  type={chart.smooth ? "monotone" : "linear"}
                   dataKey={s.name}
                   stroke={seriesColor}
                   strokeWidth={2}
                   dot={{
-                    r: 10,
+                    r: 7,
                     fill: "var(--primary-foreground)",
                     stroke: seriesColor,
                     strokeWidth: 3,
                   }}
                   activeDot={{
-                    r: 15,
+                    r: 10,
                     fill: seriesColor,
                     stroke: "var(--primary-foreground)",
                     strokeWidth: 3,

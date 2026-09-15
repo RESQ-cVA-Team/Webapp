@@ -47,6 +47,7 @@ export function getDynamicCategoryTickLayout({
   };
 }
 
+
 export function getPointLabelMap(series: Pick<ChartSeries, "data">[]) {
   const labelMap = new Map<string, string>();
 
