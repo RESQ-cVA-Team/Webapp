@@ -28,7 +28,7 @@ import type {
   HistogramChartDTO,
   WaterfallChartDTO,
 } from "@/models/dto/charts";
-import { getSeriesColor, trimEmptyEdgeChartPoints } from "@/lib/chart-utils";
+import { getSeriesColor } from "@/lib/chart-utils";
 
 const THUMBNAIL_MARGIN = { top: 5, right: 10, bottom: 0, left: 10 };
 
@@ -56,14 +56,13 @@ export function LineChartThumbnail({ chart }: { chart: LineChartDTO }) {
     });
     return point;
   });
-  const trimmedData = trimEmptyEdgeChartPoints(data, seriesNames);
 
   return (
-      <LineChart data={trimmedData} margin={THUMBNAIL_MARGIN} responsive={true} style={{ width: '100%', height: '100%', minWidth: 0, minHeight: 0 }}>
+        <LineChart data={data} margin={THUMBNAIL_MARGIN} responsive={true} style={{ width: '100%', height: '100%', minWidth: 0, minHeight: 0 }}>
         {chart.series.map((s, i) => (
           <Line
             key={s.name}
-            type="monotone"
+            type={chart.smooth ? "monotone" : "linear"}
             dataKey={s.name}
             stroke={getSeriesColor(i)}
             strokeWidth={2}
@@ -100,10 +99,9 @@ export function AreaChartThumbnail({ chart }: { chart: AreaChartDTO }) {
     });
     return point;
   });
-  const trimmedData = trimEmptyEdgeChartPoints(data, seriesNames);
 
   return (
-      <RCAreaChart data={trimmedData} margin={THUMBNAIL_MARGIN} responsive={true} style={{ width: '100%', height: '100%', minWidth: 0, minHeight: 0 }}>
+        <RCAreaChart data={data} margin={THUMBNAIL_MARGIN} responsive={true} style={{ width: '100%', height: '100%', minWidth: 0, minHeight: 0 }}>
         {chart.series.map((s, i) => (
           <Area
             key={s.name}
@@ -143,10 +141,9 @@ export function BarChartThumbnail({ chart }: { chart: BarChartDTO }) {
     });
     return point;
   });
-  const trimmedData = trimEmptyEdgeChartPoints(data, seriesNames);
 
   return (
-      <RCBarChart data={trimmedData} margin={THUMBNAIL_MARGIN} responsive={true} style={{ width: '100%', height: '100%', minWidth: 0, minHeight: 0 }}>
+        <RCBarChart data={data} margin={THUMBNAIL_MARGIN} responsive={true} style={{ width: '100%', height: '100%', minWidth: 0, minHeight: 0 }}>
         {chart.series.map((s, i) => (
           <Bar
             key={s.name}
@@ -247,10 +244,9 @@ export function BoxChartThumbnail({ chart }: { chart: BoxChartDTO }) {
     min: entry.min,
     max: entry.max,
   }));
-  const trimmedData = trimEmptyEdgeChartPoints(data, ["median"]);
 
   return (
-      <RCBarChart data={trimmedData} margin={THUMBNAIL_MARGIN} responsive={true} style={{ width: '100%', height: '100%', minWidth: 0, minHeight: 0 }}>
+      <RCBarChart data={data} margin={THUMBNAIL_MARGIN} responsive={true} style={{ width: '100%', height: '100%', minWidth: 0, minHeight: 0 }}>
         <Bar dataKey="median" fill="hsl(200, 70%, 50%)" isAnimationActive={false} />
       </RCBarChart>
   );
@@ -261,11 +257,10 @@ export function HistogramChartThumbnail({ chart }: { chart: HistogramChartDTO })
   const data = chart.data.map((bin) => ({
     value: chart.cumulative ? bin.density ?? bin.frequency : bin.frequency,
   }));
-  const trimmedData = trimEmptyEdgeChartPoints(data, ["value"]);
 
   return (
 
-      <RCBarChart data={trimmedData} margin={THUMBNAIL_MARGIN} responsive={true} style={{ width: '100%', height: '100%', minWidth: 0, minHeight: 0 }}>
+      <RCBarChart data={data} margin={THUMBNAIL_MARGIN} responsive={true} style={{ width: '100%', height: '100%', minWidth: 0, minHeight: 0 }}>
         <Bar dataKey="value" fill="hsl(200, 70%, 50%)" isAnimationActive={false} />
       </RCBarChart>
   );
@@ -274,10 +269,9 @@ export function HistogramChartThumbnail({ chart }: { chart: HistogramChartDTO })
 // WATERFALL CHART THUMBNAIL
 export function WaterfallChartThumbnail({ chart }: { chart: WaterfallChartDTO }) {
   const data = chart.data.map((step) => ({ value: step.value }));
-  const trimmedData = trimEmptyEdgeChartPoints(data, ["value"]);
 
   return (
-      <RCBarChart data={trimmedData} margin={THUMBNAIL_MARGIN} responsive={true} style={{ width: '100%', height: '100%', minWidth: 0, minHeight: 0 }}>
+      <RCBarChart data={data} margin={THUMBNAIL_MARGIN} responsive={true} style={{ width: '100%', height: '100%', minWidth: 0, minHeight: 0 }}>
         <Bar dataKey="value" fill="hsl(200, 70%, 50%)" isAnimationActive={false} />
       </RCBarChart>
   );
