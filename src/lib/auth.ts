@@ -1,14 +1,9 @@
 import type { DefaultSession, NextAuthConfig } from "next-auth";
 import type {} from "next-auth/jwt";
-import { authBaseConfig, keycloakIssuer } from "@/auth.config";
+import { authBaseConfig } from "@/auth.config";
 import { isFeedbackAdmin } from "@/lib/feedbackAccess";
+import { ACCESS_TOKEN_REFRESH_SAFETY_MS, ensureFreshUserTokens } from "@/lib/userTokenRefresh";
 import { getUserAccessToken, getUserTokenEntry, putUserTokens } from "@/lib/userTokenVault";
-
-const parsedRefreshSafetyMs = Number(process.env.NEXTAUTH_ACCESS_TOKEN_REFRESH_SAFETY_MS ?? "90000");
-const ACCESS_TOKEN_REFRESH_SAFETY_MS =
-  Number.isFinite(parsedRefreshSafetyMs) && parsedRefreshSafetyMs >= 0
-    ? parsedRefreshSafetyMs
-    : 90000;
 
 declare module "next-auth" {
   interface Session {
@@ -158,7 +153,6 @@ export const authConfig = {
         }
       }
 
-      const currentTokenEntry = sessionSubject ? await getUserTokenEntry(sessionSubject) : null;
       const currentAccessToken = sessionSubject ? await getUserAccessToken(sessionSubject) : null;
 
       token.isFeedbackAdmin = isFeedbackAdmin({
@@ -166,76 +160,26 @@ export const authConfig = {
         accessToken: currentAccessToken,
       });
 
-      const now = Date.now();
       const refreshWindowStart =
         typeof token.accessTokenExpires === "number"
           ? token.accessTokenExpires - ACCESS_TOKEN_REFRESH_SAFETY_MS
           : undefined;
 
-      if (
-        typeof refreshWindowStart === "number" &&
-        now < refreshWindowStart
-      ) {
+      if (typeof refreshWindowStart !== "number" || Date.now() < refreshWindowStart) {
         return token;
       }
 
-      if (
-        typeof refreshWindowStart === "number" &&
-        now >= refreshWindowStart
-      ) {
-        if (currentTokenEntry?.refreshToken) {
-          try {
-            const url = `${keycloakIssuer}/protocol/openid-connect/token`;
-            const params = new URLSearchParams({
-              client_id: process.env.KEYCLOAK_CLIENT_ID!,
-              client_secret: process.env.KEYCLOAK_CLIENT_SECRET!,
-              grant_type: "refresh_token",
-              refresh_token: currentTokenEntry.refreshToken,
-            });
-
-            const response = await fetch(url, {
-              method: "POST",
-              headers: { "Content-Type": "application/x-www-form-urlencoded" },
-              body: params,
-            });
-
-            const refreshedTokens = await response.json();
-
-            if (!response.ok) {
-              throw new Error(
-                `Token refresh failed: ${response.status} ${response.statusText} ${JSON.stringify(refreshedTokens)}`
-              );
-            }
-
-            token.accessTokenExpires = Date.now() + refreshedTokens.expires_in * 1000;
-            token.accessTokenRefreshedAt = Date.now();
-            token.error = undefined;
-
-            if (sessionSubject && typeof refreshedTokens.access_token === "string") {
-              await putUserTokens({
-                sub: sessionSubject,
-                accessToken: refreshedTokens.access_token,
-                refreshToken:
-                  typeof refreshedTokens.refresh_token === "string"
-                    ? refreshedTokens.refresh_token
-                    : currentTokenEntry.refreshToken,
-                accessTokenExpiresAt: token.accessTokenExpires,
-                accessTokenRefreshedAt: token.accessTokenRefreshedAt,
-              });
-            }
-
-            return token;
-          } catch (error) {
-            token.error = "RefreshAccessTokenError";
-            console.error("Failed to refresh access token:", error);
-            return token;
-          }
-        } else {
-          token.error = "RefreshAccessTokenError";
-          return token;
-        }
+      const fresh = sessionSubject ? await ensureFreshUserTokens(sessionSubject) : null;
+      if (!fresh) {
+        token.error = "RefreshAccessTokenError";
+        return token;
       }
 
+      token.accessTokenExpires = fresh.expiresAt;
+      if (fresh.refreshed) {
+        token.accessTokenRefreshedAt = Date.now();
+      }
+      token.error = undefined;
       return token;
     },
     async session({ session, token }) {

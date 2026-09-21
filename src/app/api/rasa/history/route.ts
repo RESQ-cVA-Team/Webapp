@@ -87,6 +87,7 @@ export async function GET(req: NextRequest) {
       cookies: cookiesMap,
       userSub,
       threadId,
+      accessToken: session?.accessToken,
       // Webapp's own UI no longer renders this (debug tooltip/context-menu were
       // removed in favor of CVaLab), but CVaLab's scenario runner reads this
       // same endpoint and needs it unconditionally -- see CVaLab/server/native_runner.ts.

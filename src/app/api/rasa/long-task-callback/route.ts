@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchRasaTrackerEvents, mapRasaTrackerEvents } from "@/lib/rasaHistory";
-import { getRasaBots, withRasaAuth } from "@/lib/rasaConfig";
+import { getRasaBots, withRasaAuth, withUserBearerHeader } from "@/lib/rasaConfig";
 import { buildRasaSenderId } from "@/lib/rasaSender";
 import { getJob, touchJob } from "@/lib/jobStore";
 import { verifyActionServiceBearer } from "@/lib/keycloakIntrospect";
+import { getFreshUserAccessToken } from "@/lib/userTokenRefresh";
 import { publishCommittedHistoryItems, publishToSender, setCommittedCursorFloor } from "@/lib/sseBus";
 import {
   createTraceErrorResponse,
@@ -178,12 +179,23 @@ export async function POST(req: NextRequest) {
     controlCount: controls.length,
   }));
 
+  // No user request is in flight here, so Rasa gets the job owner's own
+  // token, refreshed from the vault if it lapsed while the job ran -- never
+  // a caller-supplied identity.
+  const userAccessToken = await getFreshUserAccessToken(job.sub);
+  if (!userAccessToken) {
+    console.error("[long-task-callback] No usable user token to write the result to Rasa", createTraceLogContext(traceId, {
+      senderId,
+    }));
+    return createTraceErrorResponse("User session expired; cannot persist callback result", 502, traceId);
+  }
+
   if (trackerEvents.length > 0) {
     const trackerResponse = await fetch(
       withRasaAuth(`${rasaUrl}/conversations/${senderId}/tracker/events`),
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: withUserBearerHeader({ "Content-Type": "application/json" }, userAccessToken),
         body: JSON.stringify(trackerEvents),
       }
     );
@@ -197,7 +209,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Re-read the canonical tracker state and publish only committed deltas.
-  const committedTracker = await fetchRasaTrackerEvents(rasaUrl, senderId);
+  const committedTracker = await fetchRasaTrackerEvents(rasaUrl, senderId, userAccessToken);
   if (committedTracker.error) {
     console.error("[long-task-callback] Failed to read committed tracker after persistence", createTraceLogContext(traceId, {
       senderId, status: committedTracker.status, error: committedTracker.error,
