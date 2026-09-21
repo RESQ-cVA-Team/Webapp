@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchRasaTrackerEvents, mapRasaTrackerEvents } from "@/lib/rasaHistory";
-import { getRasaBots, withRasaAuth, withUserBearerHeader } from "@/lib/rasaConfig";
+import { getRasaBots, withUserBearerHeader } from "@/lib/rasaConfig";
 import { buildRasaSenderId } from "@/lib/rasaSender";
 import { getJob, touchJob } from "@/lib/jobStore";
 import { verifyActionServiceBearer } from "@/lib/keycloakIntrospect";
@@ -192,7 +192,7 @@ export async function POST(req: NextRequest) {
 
   if (trackerEvents.length > 0) {
     const trackerResponse = await fetch(
-      withRasaAuth(`${rasaUrl}/conversations/${senderId}/tracker/events`),
+      `${rasaUrl}/conversations/${senderId}/tracker/events`,
       {
         method: "POST",
         headers: withUserBearerHeader({ "Content-Type": "application/json" }, userAccessToken),

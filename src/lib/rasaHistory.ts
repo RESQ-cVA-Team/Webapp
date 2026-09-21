@@ -1,4 +1,4 @@
-import { getRasaUrlForRequest, withRasaAuth, withUserBearerHeader } from "@/lib/rasaConfig";
+import { getRasaUrlForRequest, withUserBearerHeader } from "@/lib/rasaConfig";
 import { buildRasaSenderId } from "@/lib/rasaSender";
 
 export type RasaHistoryEvent = {
@@ -73,7 +73,7 @@ export async function fetchRasaTrackerEvents(
   senderId: string,
   accessToken: string | null | undefined
 ) {
-  const tracker = await fetch(withRasaAuth(`${apiUrl}/conversations/${senderId}/tracker`), {
+  const tracker = await fetch(`${apiUrl}/conversations/${senderId}/tracker`, {
     headers: withUserBearerHeader(undefined, accessToken),
     cache: "no-store",
   });
