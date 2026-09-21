@@ -7,11 +7,8 @@ export const CVA_ROLE_MISSING_ERROR = "MissingCvaRole";
 
 export const NO_ACCESS_PATH = "/auth/no-access";
 
-/** Keycloak realm role a user must hold to use cVA. Read per call so tests
- * and deployments can change it without a module reload. */
-export function getRequiredCvaRole(): string {
-  return process.env.CVA_REQUIRED_ROLE?.trim().toLowerCase() || "cva";
-}
+/** Keycloak realm role a user must hold to use cVA. */
+export const REQUIRED_CVA_ROLE = "cva";
 
 // Realm roles only: the top-level `roles` claim this realm's tokens carry and
 // the standard `realm_access.roles`. Deliberately narrower than
@@ -41,7 +38,7 @@ function collectRealmRoles(payload: Record<string, unknown>): string[] {
 export function hasRequiredCvaRole(accessToken: string | null | undefined): boolean {
   const payload = decodeJwtPayload(accessToken);
   if (!payload) return false;
-  return collectRealmRoles(payload).includes(getRequiredCvaRole());
+  return collectRealmRoles(payload).includes(REQUIRED_CVA_ROLE);
 }
 
 /** False for no session and for a session whose user lacks the cVA role.

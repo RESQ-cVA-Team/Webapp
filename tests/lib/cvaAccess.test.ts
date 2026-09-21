@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { hasRequiredCvaRole, isSessionAllowed, CVA_ROLE_MISSING_ERROR } from "@/lib/cvaAccess";
 
 function buildJwt(payload: Record<string, unknown>): string {
@@ -6,12 +6,6 @@ function buildJwt(payload: Record<string, unknown>): string {
   const body = Buffer.from(JSON.stringify(payload)).toString("base64url");
   return `${header}.${body}.signature`;
 }
-
-const ORIGINAL_ROLE = process.env.CVA_REQUIRED_ROLE;
-afterEach(() => {
-  if (ORIGINAL_ROLE === undefined) delete process.env.CVA_REQUIRED_ROLE;
-  else process.env.CVA_REQUIRED_ROLE = ORIGINAL_ROLE;
-});
 
 describe("hasRequiredCvaRole", () => {
   it("accepts the role in the top-level roles claim this realm emits", () => {
@@ -46,17 +40,6 @@ describe("hasRequiredCvaRole", () => {
     expect(hasRequiredCvaRole("not-a-jwt")).toBe(false);
     expect(hasRequiredCvaRole(buildJwt({ roles: "cva" }))).toBe(false);
     expect(hasRequiredCvaRole(buildJwt({}))).toBe(false);
-  });
-
-  it("uses the configured role name instead of the default", () => {
-    process.env.CVA_REQUIRED_ROLE = "Trial-Users";
-    expect(hasRequiredCvaRole(buildJwt({ roles: ["cva"] }))).toBe(false);
-    expect(hasRequiredCvaRole(buildJwt({ roles: ["trial-users"] }))).toBe(true);
-  });
-
-  it("falls back to cva when the setting is blank", () => {
-    process.env.CVA_REQUIRED_ROLE = "   ";
-    expect(hasRequiredCvaRole(buildJwt({ roles: ["cva"] }))).toBe(true);
   });
 });
 
