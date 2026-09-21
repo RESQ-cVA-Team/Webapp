@@ -5,7 +5,7 @@ import { buildRasaSenderId } from "@/lib/rasaSender";
 import { getJob, touchJob } from "@/lib/jobStore";
 import { verifyActionServiceBearer } from "@/lib/keycloakIntrospect";
 import { getFreshUserAccessToken } from "@/lib/userTokenRefresh";
-import { publishCommittedHistoryItems, publishToSender, setCommittedCursorFloor } from "@/lib/sseBus";
+import { publishCommittedHistoryItems, publishToSender } from "@/lib/sseBus";
 import {
   createTraceErrorResponse,
   createTraceLogContext,
