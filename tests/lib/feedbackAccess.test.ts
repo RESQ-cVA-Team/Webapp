@@ -50,6 +50,19 @@ describe("feedbackAccess", () => {
     ).toBe(true);
   });
 
+  it("gives a session without the cVA role no identity, even for an allow-listed admin email", () => {
+    process.env.FEEDBACK_ADMIN_EMAILS = "admin@example.com";
+    process.env.FEEDBACK_ADMIN_ROLES = "";
+
+    expect(
+      getFeedbackIdentityFromSession({
+        error: "MissingCvaRole",
+        isFeedbackAdmin: true,
+        user: { email: "admin@example.com", name: "Admin" },
+      } as never)
+    ).toEqual({ userId: null, userEmail: null, userName: null, isAdmin: false });
+  });
+
   it("extracts feedback identity from a session and token payload", () => {
     process.env.FEEDBACK_ADMIN_EMAILS = "";
     process.env.FEEDBACK_ADMIN_ROLES = "";

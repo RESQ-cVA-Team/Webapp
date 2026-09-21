@@ -1,6 +1,7 @@
 import type { DefaultSession, NextAuthConfig } from "next-auth";
 import type {} from "next-auth/jwt";
 import { authBaseConfig } from "@/auth.config";
+import { CVA_ROLE_MISSING_ERROR, NO_ACCESS_PATH, hasRequiredCvaRole } from "@/lib/cvaAccess";
 import { isFeedbackAdmin } from "@/lib/feedbackAccess";
 import { ACCESS_TOKEN_REFRESH_SAFETY_MS, ensureFreshUserTokens } from "@/lib/userTokenRefresh";
 import { getUserAccessToken, getUserTokenEntry, putUserTokens } from "@/lib/userTokenVault";
@@ -26,6 +27,9 @@ declare module "next-auth/jwt" {
     error?: string;
     isFeedbackAdmin?: boolean;
     idToken?: string;
+    /** Whether the user's latest access token carried the required cVA role.
+     * Only ever set from a token we hold; false means positively missing. */
+    hasCvaRole?: boolean;
   }
 }
 
@@ -106,6 +110,19 @@ export const authConfig = {
     async redirect({ url, baseUrl }) {
       return resolveSafeRedirect(url, baseUrl);
     },
+    async signIn({ account, profile }) {
+      // Only users holding the required Keycloak realm role may sign in at
+      // all. Returning a path (not `false`) sends them to a dedicated page
+      // instead of /auth/error, whose auto-redirect back to /signin would
+      // loop for someone who keeps authenticating fine at Keycloak.
+      if (hasRequiredCvaRole(account?.access_token)) {
+        return true;
+      }
+      console.warn("[auth] Sign-in denied: access token lacks the required cVA role", {
+        sub: typeof profile?.sub === "string" ? profile.sub : null,
+      });
+      return NO_ACCESS_PATH;
+    },
     async jwt({ token, account, profile }) {
       // On every fresh sign-in, lock token.sub to the Keycloak user UUID sourced
       // directly from the ID-token claims (profile.sub). This is the only stable
@@ -159,6 +176,13 @@ export const authConfig = {
         email: typeof token.email === "string" ? token.email : null,
         accessToken: currentAccessToken,
       });
+      // Re-evaluated from whichever token we currently hold, so a role revoked
+      // in Keycloak takes effect the next time the access token is refreshed.
+      // With no token to read, the previous verdict stands (an unusable
+      // session is handled by the refresh error path below instead).
+      if (currentAccessToken) {
+        token.hasCvaRole = hasRequiredCvaRole(currentAccessToken);
+      }
 
       const refreshWindowStart =
         typeof token.accessTokenExpires === "number"
@@ -175,6 +199,7 @@ export const authConfig = {
         return token;
       }
 
+      token.hasCvaRole = hasRequiredCvaRole(fresh.accessToken);
       token.accessTokenExpires = fresh.expiresAt;
       if (fresh.refreshed) {
         token.accessTokenRefreshedAt = Date.now();
@@ -208,6 +233,16 @@ export const authConfig = {
         session.error = token.error as string;
       } else if (!session.accessToken && sessionUserId) {
         session.error = "RefreshAccessTokenError";
+      }
+
+      // Positively known to lack the cVA role: expose no user id or token, so
+      // every route that gates on session.user.id / session.accessToken turns
+      // them away, and mark the session so the UI can show a no-access page.
+      if (token.hasCvaRole === false) {
+        session.accessToken = undefined;
+        session.isFeedbackAdmin = false;
+        delete (session.user as { id?: string }).id;
+        session.error = CVA_ROLE_MISSING_ERROR;
       }
 
       return session;

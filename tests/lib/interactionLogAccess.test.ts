@@ -26,6 +26,18 @@ afterEach(() => {
 });
 
 describe("interactionLogAccess", () => {
+  it("gives a session without the cVA role no identity, even for an allow-listed admin email", () => {
+    process.env.INTERACTION_LOG_ADMIN_EMAILS = "admin@example.com";
+    process.env.INTERACTION_LOG_ADMIN_ROLES = "";
+
+    expect(
+      getInteractionLogIdentityFromSession({
+        error: "MissingCvaRole",
+        user: { email: "admin@example.com", name: "Admin" },
+      } as never)
+    ).toEqual({ userSub: null, userEmail: null, userName: null, isAdmin: false });
+  });
+
   it("treats configured interaction-log admin emails as admins, independent of feedback's list", () => {
     process.env.INTERACTION_LOG_ADMIN_EMAILS = "admin@example.com";
     process.env.INTERACTION_LOG_ADMIN_ROLES = "";
