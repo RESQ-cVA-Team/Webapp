@@ -111,8 +111,7 @@ export async function POST(req: NextRequest) {
 
   // Action's own service identity -- a Keycloak client-credentials token,
   // verified via introspection + azp claim. This is the only proof of
-  // identity this endpoint accepts; the static LONG_TASK_CALLBACK_TOKEN
-  // shared secret it replaced has been removed.
+  // identity this endpoint accepts.
   const viaKeycloak = await verifyActionServiceBearer(req.headers.get("authorization"));
   if (!viaKeycloak) {
     console.warn("[long-task-callback] Unauthorized request", createTraceLogContext(requestTraceId));

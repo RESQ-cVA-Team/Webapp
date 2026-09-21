@@ -21,8 +21,7 @@ Run instructions for:
 - `KEYCLOAK_CLIENT_SECRET`
 - `KEYCLOAK_ISSUER`
 - `RASA_URL_LIST` (example: `en=http://rasa:5005`)
-- `ACTION_SERVER_TOKEN` (must match Action)
-- `LONG_TASK_CALLBACK_TOKEN` (must match Action)
+- `ACTION_CLIENT_ID` (Action's Keycloak service-account client ID; must match Action's own `KEYCLOAK_CLIENT_ID`)
 - `RASA_PROXY_TARGETS` (must include `graphql`; usually also `analytics`)
 
 If feedback is enabled:
@@ -68,8 +67,7 @@ docker run --rm -p 3000:3000 \
   -e KEYCLOAK_CLIENT_SECRET=<secret> \
   -e KEYCLOAK_ISSUER=https://<issuer>/realms/<realm> \
   -e RASA_URL_LIST=en=http://rasa:5005 \
-  -e ACTION_SERVER_TOKEN=<shared-action-token> \
-  -e LONG_TASK_CALLBACK_TOKEN=<shared-callback-token> \
+  -e ACTION_CLIENT_ID=<action-client-id> \
   -e RASA_PROXY_TARGETS='{"graphql":"https://<host>","analytics":"https://<host>"}' \
   ghcr.io/<org>/webapp:latest
 ```
