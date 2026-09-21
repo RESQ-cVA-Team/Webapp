@@ -13,7 +13,6 @@ const ACCESS_TOKEN_REFRESH_SAFETY_MS =
 declare module "next-auth" {
   interface Session {
     accessToken?: string;
-    refreshToken?: string;
     accessTokenExpires?: number;
     accessTokenRefreshedAt?: number;
     error?: string;
