@@ -52,7 +52,7 @@ export async function GET(req: NextRequest) {
   const rasaUrl = getRasaUrlForRequest(req.headers, cookiesMap);
   if (rasaUrl) {
     try {
-      const tracker = await fetchRasaTrackerEvents(rasaUrl, senderId);
+      const tracker = await fetchRasaTrackerEvents(rasaUrl, senderId, session.accessToken);
       if (!tracker.error) {
         await setCommittedCursorFloor(senderId, tracker.events.length - 1);
       } else {

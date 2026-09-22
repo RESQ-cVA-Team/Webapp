@@ -1,4 +1,4 @@
-import { getRasaUrlForRequest, withRasaAuth } from "@/lib/rasaConfig";
+import { getRasaUrlForRequest, withUserBearerHeader } from "@/lib/rasaConfig";
 import { buildRasaSenderId } from "@/lib/rasaSender";
 
 export type RasaHistoryEvent = {
@@ -68,8 +68,13 @@ function normalizeButtons(input: unknown): RasaHistoryButton[] | undefined {
   return buttons.length > 0 ? buttons : undefined;
 }
 
-export async function fetchRasaTrackerEvents(apiUrl: string, senderId: string) {
-  const tracker = await fetch(withRasaAuth(`${apiUrl}/conversations/${senderId}/tracker`), {
+export async function fetchRasaTrackerEvents(
+  apiUrl: string,
+  senderId: string,
+  accessToken: string | null | undefined
+) {
+  const tracker = await fetch(`${apiUrl}/conversations/${senderId}/tracker`, {
+    headers: withUserBearerHeader(undefined, accessToken),
     cache: "no-store",
   });
   const contentType = tracker.headers.get("content-type") || "";
@@ -223,6 +228,7 @@ export async function fetchRasaHistory(params: {
   cookies: Map<string, string>;
   userSub: string;
   threadId: number | null;
+  accessToken: string | null | undefined;
   includeDebugMetadata?: boolean;
 }) {
   const apiUrl = getRasaUrlForRequest(params.headers, params.cookies);
@@ -235,7 +241,7 @@ export async function fetchRasaHistory(params: {
   }
 
   const senderId = buildRasaSenderId(params.userSub, params.threadId);
-  const trackerResult = await fetchRasaTrackerEvents(apiUrl, senderId);
+  const trackerResult = await fetchRasaTrackerEvents(apiUrl, senderId, params.accessToken);
   if (trackerResult.error) {
     return {
       history: [] as RasaHistoryItem[],

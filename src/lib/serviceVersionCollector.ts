@@ -1,5 +1,5 @@
 import { MESSAGE_FEEDBACK_VERSION_ENDPOINT } from "@/lib/feedbackConfig";
-import { getRasaBots, withRasaAuth } from "@/lib/rasaConfig";
+import { getRasaBots } from "@/lib/rasaConfig";
 
 type ServiceName = "webapp" | "rasa" | "action" | "ssot";
 
@@ -152,8 +152,7 @@ export async function collectFeedbackServiceSnapshots(): Promise<CollectedServic
       continue;
     }
 
-    const resolvedVersionUrl = config.service === "rasa" ? withRasaAuth(versionUrl) : versionUrl;
-    const payload = await fetchVersionPayload(resolvedVersionUrl);
+    const payload = await fetchVersionPayload(versionUrl);
     snapshots.push(mergeMetadata(envSnapshot, payload));
   }
 
