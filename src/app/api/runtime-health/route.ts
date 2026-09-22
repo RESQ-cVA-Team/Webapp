@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { isSessionAllowed } from "@/lib/cvaAccess";
 import { getFeedbackIdentityFromSession } from "@/lib/feedbackAccess";
 import { getRasaBots } from "@/lib/rasaConfig";
 
@@ -427,7 +428,7 @@ function computeOverall(
 
 export async function GET() {
   const session = await auth();
-  if (!session) {
+  if (!isSessionAllowed(session)) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
 

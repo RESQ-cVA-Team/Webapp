@@ -1,5 +1,6 @@
 import { createHash } from "crypto";
 import type { Session } from "next-auth";
+import { CVA_ROLE_MISSING_ERROR } from "@/lib/cvaAccess";
 import { getAccessTokenEmail, getAccessTokenName, getAccessTokenRoles } from "@/lib/feedbackAccess";
 import { getInteractionLogAdminEmails, getInteractionLogAdminRoles } from "@/lib/interactionLogConfig";
 
@@ -26,6 +27,11 @@ export function isInteractionLogAdmin(params: { email?: string | null; accessTok
 }
 
 export function getInteractionLogIdentityFromSession(session: Session | null | undefined) {
+  // Same rule as feedback: no cVA role, no identity and no admin rights.
+  if (session?.error === CVA_ROLE_MISSING_ERROR) {
+    return { userSub: null, userEmail: null, userName: null, isAdmin: false };
+  }
+
   const fallbackEmail = getAccessTokenEmail(session?.accessToken ?? null);
   const fallbackName = getAccessTokenName(session?.accessToken ?? null);
 

@@ -84,6 +84,14 @@ describe("GET /api/runtime-health", () => {
     expect(await response.text()).toBe("Unauthorized");
   });
 
+  it("returns unauthorized for a session whose user lacks the cVA role", async () => {
+    authMock.mockResolvedValue({ error: "MissingCvaRole", user: { email: "user@example.com" } });
+
+    const response = await GET();
+
+    expect(response.status).toBe(401);
+  });
+
   it("returns full diagnostics for an admin session", async () => {
     process.env.FEEDBACK_ADMIN_EMAILS = "admin@example.com";
     authMock.mockResolvedValue({

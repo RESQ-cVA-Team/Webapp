@@ -18,7 +18,14 @@ export async function GET(req: NextRequest) {
   const token = await getToken({ req, secret });
   const idToken = typeof token?.idToken === "string" ? token.idToken : null;
 
-  if (!keycloakIssuer || !idToken) {
+  // A user turned away at sign-in (no cVA role) never got an app session, so
+  // there is no id_token to hint with. The no-access page opts into the
+  // client_id form of RP-initiated logout for that case; Keycloak then asks
+  // the user to confirm instead of ending the session silently.
+  const clientId = process.env.KEYCLOAK_CLIENT_ID?.trim();
+  const allowClientIdHint = req.nextUrl.searchParams.get("allowClientIdHint") === "1";
+
+  if (!keycloakIssuer || (!idToken && !(allowClientIdHint && clientId))) {
     // Without an id_token we can't build a valid RP-initiated logout
     // request -- fall back to local-only sign-out rather than sending the
     // browser to Keycloak with no way to identify which session to end.
@@ -27,7 +34,11 @@ export async function GET(req: NextRequest) {
 
   const baseUrl = (process.env.NEXTAUTH_URL || req.nextUrl.origin).replace(/\/$/, "");
   const logoutUrl = new URL(`${keycloakIssuer}/protocol/openid-connect/logout`);
-  logoutUrl.searchParams.set("id_token_hint", idToken);
+  if (idToken) {
+    logoutUrl.searchParams.set("id_token_hint", idToken);
+  } else if (clientId) {
+    logoutUrl.searchParams.set("client_id", clientId);
+  }
   logoutUrl.searchParams.set("post_logout_redirect_uri", `${baseUrl}/`);
 
   return NextResponse.json({ url: logoutUrl.toString() }, { status: 200 });
