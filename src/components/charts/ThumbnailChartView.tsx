@@ -28,7 +28,7 @@ import type {
   HistogramChartDTO,
   WaterfallChartDTO,
 } from "@/models/dto/charts";
-import { getSeriesColor } from "@/lib/chart-utils";
+import { getPointLabelMap, getSeriesColor } from "@/lib/chart-utils";
 
 const THUMBNAIL_MARGIN = { top: 5, right: 10, bottom: 0, left: 10 };
 
@@ -47,12 +47,17 @@ export function LineChartThumbnail({ chart }: { chart: LineChartDTO }) {
       }
     }),
   );
+    const pointLabelMap = getPointLabelMap(chart.series);
+    const isTimeAxis = chart.metadata?.x_axis?.type === "time";
 
-  const data = bins.map((bin) => {
-    const point: Record<string, number | string | null> = { bin };
+ const data = bins.map((bin) => {
+    const point: Record<string, number | string | null> = {
+      bin,
+      binLabel: pointLabelMap.get(String(bin)) ?? String(bin),
+    };
     chart.series.forEach((s) => {
       const val = s.data.find((p) => String(p.x) === String(bin))?.y;
-      point[s.name] = typeof val === "number" && val === 0 ? null : (val ?? null);
+      point[s.name] = isTimeAxis && typeof val === "number" && val === 0 ? null : (val ?? null);
     });
     return point;
   });
@@ -68,7 +73,7 @@ export function LineChartThumbnail({ chart }: { chart: LineChartDTO }) {
             strokeWidth={2}
             dot={false}
             activeDot={false}
-            connectNulls={false}
+           //connectNulls={false}
             isAnimationActive={false}
           />
         ))}
