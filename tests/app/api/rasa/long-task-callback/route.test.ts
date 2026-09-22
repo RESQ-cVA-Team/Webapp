@@ -8,7 +8,14 @@ const publishCommittedHistoryItemsMock = vi.hoisted(() => vi.fn());
 const publishToSenderMock = vi.hoisted(() => vi.fn());
 const setCommittedCursorFloorMock = vi.hoisted(() => vi.fn());
 const getRasaBotsMock = vi.hoisted(() => vi.fn());
-const withRasaAuthMock = vi.hoisted(() => vi.fn((url: string) => url));
+const withUserBearerHeaderMock = vi.hoisted(() =>
+  vi.fn((headers: HeadersInit | undefined, token: string | null | undefined) => {
+    const result = new Headers(headers);
+    if (token) result.set("Authorization", `Bearer ${token}`);
+    return result;
+  })
+);
+const getFreshUserAccessTokenMock = vi.hoisted(() => vi.fn());
 const fetchMock = vi.hoisted(() => vi.fn());
 const getJobMock = vi.hoisted(() => vi.fn());
 const touchJobMock = vi.hoisted(() => vi.fn());
@@ -25,7 +32,10 @@ vi.mock("@/lib/sseBus", () => ({
 }));
 vi.mock("@/lib/rasaConfig", () => ({
   getRasaBots: getRasaBotsMock,
-  withRasaAuth: withRasaAuthMock,
+  withUserBearerHeader: withUserBearerHeaderMock,
+}));
+vi.mock("@/lib/userTokenRefresh", () => ({
+  getFreshUserAccessToken: getFreshUserAccessTokenMock,
 }));
 vi.mock("@/lib/jobStore", () => ({
   getJob: getJobMock,
@@ -59,7 +69,8 @@ beforeEach(() => {
   touchJobMock.mockReset();
   verifyActionServiceBearerMock.mockReset();
   verifyActionServiceBearerMock.mockResolvedValue(true);
-  withRasaAuthMock.mockImplementation((url: string) => url);
+  getFreshUserAccessTokenMock.mockReset();
+  getFreshUserAccessTokenMock.mockResolvedValue("user-token");
   mapRasaTrackerEventsMock.mockReturnValue([]);
   publishCommittedHistoryItemsMock.mockReturnValue(0);
   getRasaBotsMock.mockReturnValue([{ url: "http://rasa:5005", lang: "en" }]);
@@ -210,6 +221,40 @@ describe("POST /api/rasa/long-task-callback", () => {
       (args) => typeof args[0] === "string" && args[0].includes("/tracker/events")
     );
     expect(trackerPosts).toHaveLength(0);
+  });
+
+  it("writes to Rasa with the job owner's fresh token, resolved by the job's sub", async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => "" });
+    fetchRasaTrackerEventsMock.mockResolvedValue({ events: [], error: undefined, status: 200 });
+
+    const res = await POST(
+      makeRequest({ events: [{ event: "bot", text: "hi", data: {} }], controls: [] })
+    );
+
+    expect(res.status).toBe(200);
+    expect(getFreshUserAccessTokenMock).toHaveBeenCalledWith("u1");
+    const trackerPost = (fetchMock.mock.calls as Array<unknown[]>).find(
+      (args) => typeof args[0] === "string" && args[0].includes("/tracker/events")
+    );
+    const headers = (trackerPost?.[1] as { headers: Headers }).headers;
+    expect(headers.get("Authorization")).toBe("Bearer user-token");
+    expect(fetchRasaTrackerEventsMock).toHaveBeenCalledWith(
+      "http://rasa:5005",
+      "u1:thread:1",
+      "user-token"
+    );
+  });
+
+  it("returns 502 without touching Rasa when the job owner has no usable token", async () => {
+    getFreshUserAccessTokenMock.mockResolvedValue(null);
+
+    const res = await POST(
+      makeRequest({ events: [{ event: "bot", text: "hi", data: {} }], controls: [] })
+    );
+
+    expect(res.status).toBe(502);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(fetchRasaTrackerEventsMock).not.toHaveBeenCalled();
   });
 
   it("returns 502 when persisting to tracker fails", async () => {

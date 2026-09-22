@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { getRasaUrlForRequest, withRasaAuth, withUserBearerHeader } from "@/lib/rasaConfig";
+import { getRasaUrlForRequest, withUserBearerHeader } from "@/lib/rasaConfig";
 import { fetchRasaTrackerEvents, mapRasaTrackerEvents } from "@/lib/rasaHistory";
 import { putUserTokens } from "@/lib/userTokenVault";
 import { buildRasaSenderId } from "@/lib/rasaSender";
@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
 
     // Snapshot tracker state before the upstream call so we can publish only
     // newly committed events afterwards.
-    const baselineTracker = await fetchRasaTrackerEvents(apiUrl, senderId);
+    const baselineTracker = await fetchRasaTrackerEvents(apiUrl, senderId, session.accessToken);
     if (baselineTracker.error) {
       console.error("[rasa][post] Failed to read baseline tracker", createTraceLogContext(traceId, {
         requestId, senderId, threadId, rasaUrl: apiUrl,
@@ -127,7 +127,7 @@ export async function POST(req: NextRequest) {
         ...(uiDisplayText ? { ui_display_text: uiDisplayText } : {}),
       };
 
-      rasaStreamRes = await fetch(withRasaAuth(`${apiUrl}/webhooks/rest/webhook?stream=true`), {
+      rasaStreamRes = await fetch(`${apiUrl}/webhooks/rest/webhook?stream=true`, {
         method: "POST",
         headers: withUserBearerHeader({ "Content-Type": "application/json" }, session.accessToken),
         body: JSON.stringify({
@@ -181,7 +181,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Snapshot committed tracker state and publish only new items.
-    const committedTracker = await fetchRasaTrackerEvents(apiUrl, senderId);
+    const committedTracker = await fetchRasaTrackerEvents(apiUrl, senderId, session.accessToken);
     if (committedTracker.error) {
       console.error("[rasa][post] Failed to read committed tracker after upstream", createTraceLogContext(traceId, {
         requestId, senderId, threadId, rasaUrl: apiUrl,

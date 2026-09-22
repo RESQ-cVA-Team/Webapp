@@ -109,6 +109,7 @@ export async function POST(req: NextRequest) {
         cookies: new Map(cookieStore.getAll().map((cookie) => [cookie.name, cookie.value])),
         userSub: identity.userId,
         threadId,
+        accessToken: session?.accessToken,
       });
     } catch (error) {
       console.error("Failed to capture feedback conversation context", error);
