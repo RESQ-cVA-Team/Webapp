@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
 
     // Snapshot tracker state before the upstream call so we can publish only
     // newly committed events afterwards.
-    const baselineTracker = await fetchRasaTrackerEvents(apiUrl, senderId);
+    const baselineTracker = await fetchRasaTrackerEvents(apiUrl, senderId, session.accessToken);
     if (baselineTracker.error) {
       console.error("[rasa][post] Failed to read baseline tracker", createTraceLogContext(traceId, {
         requestId, senderId, threadId, rasaUrl: apiUrl,
@@ -181,7 +181,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Snapshot committed tracker state and publish only new items.
-    const committedTracker = await fetchRasaTrackerEvents(apiUrl, senderId);
+    const committedTracker = await fetchRasaTrackerEvents(apiUrl, senderId, session.accessToken);
     if (committedTracker.error) {
       console.error("[rasa][post] Failed to read committed tracker after upstream", createTraceLogContext(traceId, {
         requestId, senderId, threadId, rasaUrl: apiUrl,

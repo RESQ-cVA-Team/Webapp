@@ -203,4 +203,24 @@ describe("POST /api/rasa", () => {
       baselineEvents.length - 1
     );
   });
+
+  it("reads the tracker (baseline and committed) with the user's own token", async () => {
+    authMock.mockResolvedValue({ accessToken: "tok", user: { id: "u1" } });
+    getRasaUrlForRequestMock.mockReturnValue("http://rasa:5005");
+    fetchRasaTrackerEventsMock.mockResolvedValue({ events: [], error: undefined, status: 200 });
+    mapRasaTrackerEventsMock.mockReturnValue([]);
+    publishCommittedHistoryItemsMock.mockReturnValue(0);
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      body: new ReadableStream({ start(c) { c.close(); } }),
+    });
+
+    await POST(makeRequest({ message: "hi", threadId: 1 }));
+
+    expect(fetchRasaTrackerEventsMock).toHaveBeenCalledTimes(2);
+    for (const call of fetchRasaTrackerEventsMock.mock.calls) {
+      expect(call).toEqual(["http://rasa:5005", "u1:thread:1", "tok"]);
+    }
+  });
 });
