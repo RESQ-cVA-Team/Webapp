@@ -9,7 +9,6 @@ const publishCommittedHistoryItemsMock = vi.hoisted(() => vi.fn());
 const setCommittedCursorFloorMock = vi.hoisted(() => vi.fn());
 const putUserTokensMock = vi.hoisted(() => vi.fn());
 const getRasaUrlForRequestMock = vi.hoisted(() => vi.fn());
-const withRasaAuthMock = vi.hoisted(() => vi.fn((url: string) => url));
 const fetchMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/auth", () => ({ auth: authMock }));
@@ -24,7 +23,6 @@ vi.mock("@/lib/sseBus", () => ({
 vi.mock("@/lib/userTokenVault", () => ({ putUserTokens: putUserTokensMock }));
 vi.mock("@/lib/rasaConfig", () => ({
   getRasaUrlForRequest: getRasaUrlForRequestMock,
-  withRasaAuth: withRasaAuthMock,
   withUserBearerHeader: (headers: HeadersInit | undefined, accessToken: string | null | undefined) => {
     const result = new Headers(headers);
     if (accessToken) result.set("Authorization", `Bearer ${accessToken}`);
@@ -63,7 +61,6 @@ beforeEach(() => {
   setCommittedCursorFloorMock.mockReset();
   getRasaUrlForRequestMock.mockReset();
   fetchMock.mockReset();
-  withRasaAuthMock.mockImplementation((url: string) => url);
   publishCommittedHistoryItemsMock.mockReturnValue(0);
   mapRasaTrackerEventsMock.mockReturnValue([]);
 });
@@ -164,8 +161,7 @@ describe("POST /api/rasa", () => {
     const init = call?.[1] as { body?: string; method?: string; headers?: Headers };
     expect(init.method).toBe("POST");
     expect(init.headers?.get("Content-Type")).toBe("application/json");
-    // Session has a real accessToken ("tok") in this test, so the user's
-    // Keycloak token should ride alongside RASA_AUTH_TOKEN as a Bearer header.
+    // The user's Keycloak token is the only credential, sent as a Bearer header.
     expect(init.headers?.get("Authorization")).toBe("Bearer tok");
 
     const upstreamBody = JSON.parse(init.body || "{}");
@@ -202,5 +198,25 @@ describe("POST /api/rasa", () => {
       expect.any(String),
       baselineEvents.length - 1
     );
+  });
+
+  it("reads the tracker (baseline and committed) with the user's own token", async () => {
+    authMock.mockResolvedValue({ accessToken: "tok", user: { id: "u1" } });
+    getRasaUrlForRequestMock.mockReturnValue("http://rasa:5005");
+    fetchRasaTrackerEventsMock.mockResolvedValue({ events: [], error: undefined, status: 200 });
+    mapRasaTrackerEventsMock.mockReturnValue([]);
+    publishCommittedHistoryItemsMock.mockReturnValue(0);
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      body: new ReadableStream({ start(c) { c.close(); } }),
+    });
+
+    await POST(makeRequest({ message: "hi", threadId: 1 }));
+
+    expect(fetchRasaTrackerEventsMock).toHaveBeenCalledTimes(2);
+    for (const call of fetchRasaTrackerEventsMock.mock.calls) {
+      expect(call).toEqual(["http://rasa:5005", "u1:thread:1", "tok"]);
+    }
   });
 });
