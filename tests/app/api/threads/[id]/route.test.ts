@@ -6,7 +6,6 @@ const getThreadFromRasaMock = vi.hoisted(() => vi.fn());
 const renameThreadInRasaMock = vi.hoisted(() => vi.fn());
 const deleteThreadInRasaMock = vi.hoisted(() => vi.fn());
 const getRasaUrlForRequestMock = vi.hoisted(() => vi.fn());
-const withRasaAuthMock = vi.hoisted(() => vi.fn((url: string) => url));
 const buildRasaSenderIdMock = vi.hoisted(() => vi.fn());
 const cookiesMock = vi.hoisted(() => vi.fn());
 const headersMock = vi.hoisted(() => vi.fn());
@@ -23,7 +22,6 @@ vi.mock("@/lib/rasaThreadIndex", () => ({
 
 vi.mock("@/lib/rasaConfig", () => ({
   getRasaUrlForRequest: getRasaUrlForRequestMock,
-  withRasaAuth: withRasaAuthMock,
 }));
 
 vi.mock("@/lib/rasaSender", () => ({
@@ -43,8 +41,6 @@ beforeEach(() => {
   renameThreadInRasaMock.mockReset();
   deleteThreadInRasaMock.mockReset();
   getRasaUrlForRequestMock.mockReset();
-  withRasaAuthMock.mockReset();
-  withRasaAuthMock.mockImplementation((url: string) => url);
   buildRasaSenderIdMock.mockReset();
   cookiesMock.mockReset();
   headersMock.mockReset();
