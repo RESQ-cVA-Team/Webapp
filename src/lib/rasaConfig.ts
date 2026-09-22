@@ -6,33 +6,10 @@ export type RasaBot = {
   label: string;
 };
 
-function normalizeRasaBaseUrl(input: string): string {
-  return input.trim().replace(/\/$/, "");
-}
-
-export function getRasaAuthToken(): string | null {
-  const token = process.env.RASA_AUTH_TOKEN?.trim();
-  return token ? token : null;
-}
-
-export function withRasaAuth(url: string): string {
-  const normalized = normalizeRasaBaseUrl(url);
-  const token = getRasaAuthToken();
-  if (!token) {
-    return normalized;
-  }
-
-  const target = new URL(normalized);
-  target.searchParams.set("token", token);
-  return target.toString();
-}
-
-// Additive alongside withRasaAuth's RASA_AUTH_TOKEN query param, not a
-// replacement -- that token proves "a real Webapp instance is calling"
-// (Rasa's global auth-token middleware), this proves "and specifically for
-// this real, currently-authenticated user" once Rasa verifies it. Callers
-// that have no per-user access token (health checks, service-version pings)
-// simply don't set this header.
+// Rasa verifies this Keycloak access token on every route except GET /version,
+// and checks that its subject matches the user the request acts for. Callers
+// with no user token in hand (health checks, service-version pings) only use
+// /version and send no credentials at all.
 export function withUserBearerHeader(
   headers: HeadersInit | undefined,
   accessToken: string | null | undefined
