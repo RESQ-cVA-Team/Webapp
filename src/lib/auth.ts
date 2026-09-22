@@ -8,7 +8,6 @@ import { getUserAccessToken, getUserTokenEntry, putUserTokens } from "@/lib/user
 declare module "next-auth" {
   interface Session {
     accessToken?: string;
-    refreshToken?: string;
     accessTokenExpires?: number;
     accessTokenRefreshedAt?: number;
     error?: string;
