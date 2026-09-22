@@ -1,4 +1,4 @@
-import { getRasaUrlForRequest, withRasaAuth, withUserBearerHeader } from "@/lib/rasaConfig";
+import { getRasaUrlForRequest, withUserBearerHeader } from "@/lib/rasaConfig";
 
 export type ThreadRecord = {
   id: number;
@@ -49,7 +49,7 @@ export async function listThreadsFromRasa(params: {
     return null;
   }
 
-  const res = await fetch(withRasaAuth(`${apiUrl}/threads/by-user/${encodeURIComponent(params.userId)}`), {
+  const res = await fetch(`${apiUrl}/threads/by-user/${encodeURIComponent(params.userId)}`, {
     headers: withUserBearerHeader(undefined, params.accessToken),
     cache: "no-store",
   });
@@ -90,7 +90,7 @@ export async function createThreadInRasa(params: {
     return null;
   }
 
-  const nextIdRes = await fetch(withRasaAuth(`${apiUrl}/threads/by-user/${encodeURIComponent(params.userId)}/next-id`), {
+  const nextIdRes = await fetch(`${apiUrl}/threads/by-user/${encodeURIComponent(params.userId)}/next-id`, {
     headers: withUserBearerHeader(undefined, params.accessToken),
     cache: "no-store",
   });
@@ -110,7 +110,7 @@ export async function createThreadInRasa(params: {
   const trimmedName = typeof params.name === "string" ? params.name.trim() : "";
   const threadName = trimmedName || `Conversation ${nextId}`;
 
-  const createRes = await fetch(withRasaAuth(`${apiUrl}/threads/${encodeURIComponent(params.userId)}/index-event`), {
+  const createRes = await fetch(`${apiUrl}/threads/${encodeURIComponent(params.userId)}/index-event`, {
     method: "POST",
     headers: withUserBearerHeader({ "Content-Type": "application/json" }, params.accessToken),
     body: JSON.stringify({
@@ -156,7 +156,7 @@ export async function renameThreadInRasa(params: {
     return null;
   }
 
-  const res = await fetch(withRasaAuth(`${apiUrl}/threads/${encodeURIComponent(params.userId)}/index-event`), {
+  const res = await fetch(`${apiUrl}/threads/${encodeURIComponent(params.userId)}/index-event`, {
     method: "POST",
     headers: withUserBearerHeader({ "Content-Type": "application/json" }, params.accessToken),
     body: JSON.stringify({
@@ -192,9 +192,7 @@ export async function deleteThreadInRasa(params: {
   // Use the dedicated DELETE endpoint which handles both hard-delete of the
   // conversation tracker and the soft-delete index update in one atomic call.
   const res = await fetch(
-    withRasaAuth(
-      `${apiUrl}/threads/${encodeURIComponent(params.userId)}/thread/${encodeURIComponent(String(params.threadId))}`
-    ),
+    `${apiUrl}/threads/${encodeURIComponent(params.userId)}/thread/${encodeURIComponent(String(params.threadId))}`,
     { method: "DELETE", headers: withUserBearerHeader(undefined, params.accessToken), cache: "no-store" }
   );
 

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies, headers } from "next/headers";
 import { auth } from "@/auth";
-import { deleteThreadInRasa, getThreadFromRasa, renameThreadInRasa } from "@/lib/rasaThreadIndex";
+import { deleteThreadInRasa, renameThreadInRasa } from "@/lib/rasaThreadIndex";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

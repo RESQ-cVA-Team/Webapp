@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchRasaTrackerEvents, mapRasaTrackerEvents } from "@/lib/rasaHistory";
-import { getRasaBots, withRasaAuth, withUserBearerHeader } from "@/lib/rasaConfig";
+import { getRasaBots, withUserBearerHeader } from "@/lib/rasaConfig";
 import { buildRasaSenderId } from "@/lib/rasaSender";
 import { getJob, touchJob } from "@/lib/jobStore";
 import { verifyActionServiceBearer } from "@/lib/keycloakIntrospect";
 import { getFreshUserAccessToken } from "@/lib/userTokenRefresh";
-import { publishCommittedHistoryItems, publishToSender, setCommittedCursorFloor } from "@/lib/sseBus";
+import { publishCommittedHistoryItems, publishToSender } from "@/lib/sseBus";
 import {
   createTraceErrorResponse,
   createTraceLogContext,
@@ -111,8 +111,7 @@ export async function POST(req: NextRequest) {
 
   // Action's own service identity -- a Keycloak client-credentials token,
   // verified via introspection + azp claim. This is the only proof of
-  // identity this endpoint accepts; the static LONG_TASK_CALLBACK_TOKEN
-  // shared secret it replaced has been removed.
+  // identity this endpoint accepts.
   const viaKeycloak = await verifyActionServiceBearer(req.headers.get("authorization"));
   if (!viaKeycloak) {
     console.warn("[long-task-callback] Unauthorized request", createTraceLogContext(requestTraceId));
@@ -192,7 +191,7 @@ export async function POST(req: NextRequest) {
 
   if (trackerEvents.length > 0) {
     const trackerResponse = await fetch(
-      withRasaAuth(`${rasaUrl}/conversations/${senderId}/tracker/events`),
+      `${rasaUrl}/conversations/${senderId}/tracker/events`,
       {
         method: "POST",
         headers: withUserBearerHeader({ "Content-Type": "application/json" }, userAccessToken),

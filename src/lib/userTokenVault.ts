@@ -29,9 +29,8 @@ const USER_TOKEN_VAULT_REDIS_PREFIX = (process.env.USER_TOKEN_VAULT_REDIS_PREFIX
 
 const DEFAULT_TTL_MS = Number(process.env.USER_TOKEN_VAULT_TTL_MS ?? 30 * 60 * 1000);
 
-// Fail at boot, not on a live user's first login -- a bad value here
-// previously only surfaced as a confusing signin redirect loop once
-// someone actually tried to log in.
+// Fail at boot, not on a live user's first login -- a bad value here would
+// otherwise surface as a confusing signin redirect loop.
 if (USER_TOKEN_VAULT_BACKEND !== "memory" && USER_TOKEN_VAULT_BACKEND !== "redis") {
   throw new Error(`Unsupported USER_TOKEN_VAULT_BACKEND: ${USER_TOKEN_VAULT_BACKEND}`);
 }
@@ -99,12 +98,12 @@ function redisKeyForSub(sub: string): string {
   return `${USER_TOKEN_VAULT_REDIS_PREFIX}${sub}`;
 }
 
-// Real Keycloak access/refresh tokens used to be stored in Redis as plain
-// JSON -- anyone who could read this keyspace (a misconfigured ACL, a
-// leaked admin console, a Redis backup) could impersonate any user via
-// their refresh token. Encrypted at rest with AES-256-GCM; CVaLab writes
-// into this same keyspace directly (server/keycloakAuth.ts) and mirrors
-// this exact scheme, so both sides can read what the other wrote.
+// Real Keycloak access/refresh tokens are encrypted at rest with AES-256-GCM:
+// anyone who could read this keyspace (a misconfigured ACL, a leaked admin
+// console, a Redis backup) could otherwise impersonate any user via their
+// refresh token. CVaLab writes into this same keyspace directly
+// (server/keycloakAuth.ts) and mirrors this exact scheme, so both sides can
+// read what the other wrote.
 const ENCRYPTION_ALGORITHM = "aes-256-gcm";
 const ENCRYPTION_IV_LENGTH = 12;
 const ENCRYPTION_AUTH_TAG_LENGTH = 16;

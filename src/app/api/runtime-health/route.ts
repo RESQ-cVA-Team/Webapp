@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { isSessionAllowed } from "@/lib/cvaAccess";
 import { getFeedbackIdentityFromSession } from "@/lib/feedbackAccess";
-import { getRasaBots, withRasaAuth } from "@/lib/rasaConfig";
+import { getRasaBots } from "@/lib/rasaConfig";
 
 type HealthStatus = "up" | "degraded" | "down" | "misconfigured" | "unknown";
 
@@ -86,7 +86,7 @@ function getRasaVersionTargets(): RasaVersionTarget[] {
       {
         key: "rasa",
         label: "Rasa",
-        url: withRasaAuth(configured),
+        url: configured,
       },
     ];
   }
@@ -99,7 +99,7 @@ function getRasaVersionTargets(): RasaVersionTarget[] {
   return bots.map((bot) => ({
     key: `rasa:${bot.lang}`,
     label: `Rasa (${bot.lang})`,
-    url: withRasaAuth(`${bot.url.replace(/\/$/, "")}/version`),
+    url: `${bot.url.replace(/\/$/, "")}/version`,
   }));
 }
 
@@ -368,13 +368,6 @@ function collectConfigHealth(): ConfigHealthItem[] {
     key: "rasa_url_list",
     status: rasaUrlList ? "ok" : "error",
     detail: rasaUrlList ? "RASA_URL_LIST configured" : "RASA_URL_LIST missing",
-  });
-
-  const rasaToken = readEnv("RASA_AUTH_TOKEN");
-  items.push({
-    key: "rasa_auth_token",
-    status: rasaToken ? "ok" : "warning",
-    detail: rasaToken ? "RASA auth token configured" : "RASA auth token missing",
   });
 
   const actionServiceClientId = readEnv("ACTION_CLIENT_ID");

@@ -8,7 +8,6 @@ const publishCommittedHistoryItemsMock = vi.hoisted(() => vi.fn());
 const publishToSenderMock = vi.hoisted(() => vi.fn());
 const setCommittedCursorFloorMock = vi.hoisted(() => vi.fn());
 const getRasaBotsMock = vi.hoisted(() => vi.fn());
-const withRasaAuthMock = vi.hoisted(() => vi.fn((url: string) => url));
 const withUserBearerHeaderMock = vi.hoisted(() =>
   vi.fn((headers: HeadersInit | undefined, token: string | null | undefined) => {
     const result = new Headers(headers);
@@ -33,7 +32,6 @@ vi.mock("@/lib/sseBus", () => ({
 }));
 vi.mock("@/lib/rasaConfig", () => ({
   getRasaBots: getRasaBotsMock,
-  withRasaAuth: withRasaAuthMock,
   withUserBearerHeader: withUserBearerHeaderMock,
 }));
 vi.mock("@/lib/userTokenRefresh", () => ({
@@ -73,7 +71,6 @@ beforeEach(() => {
   verifyActionServiceBearerMock.mockResolvedValue(true);
   getFreshUserAccessTokenMock.mockReset();
   getFreshUserAccessTokenMock.mockResolvedValue("user-token");
-  withRasaAuthMock.mockImplementation((url: string) => url);
   mapRasaTrackerEventsMock.mockReturnValue([]);
   publishCommittedHistoryItemsMock.mockReturnValue(0);
   getRasaBotsMock.mockReturnValue([{ url: "http://rasa:5005", lang: "en" }]);
