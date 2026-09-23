@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { isSessionAllowed } from "@/lib/cvaAccess";
 import { getInteractionLogIdentityFromSession } from "@/lib/interactionLogAccess";
 import { isInteractionLogEnabled } from "@/lib/interactionLogConfig";
 import { getInteractionLogSettingsCached } from "@/lib/interactionLogSettingsCache";
@@ -10,7 +11,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   const session = await auth();
-  if (!session) {
+  if (!isSessionAllowed(session)) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
 
