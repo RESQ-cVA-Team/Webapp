@@ -61,6 +61,7 @@ export interface HistogramBinDTO {
   range_end: number;
   frequency: number;
   density?: number;
+  label?: string;
 }
 export interface HistogramChartDTO {
   type: Extract<ChartType, "HISTOGRAM">;

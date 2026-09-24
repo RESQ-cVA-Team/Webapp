@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const authMock = vi.hoisted(() => vi.fn());
 const getRasaBotsMock = vi.hoisted(() => vi.fn());
-const withRasaAuthMock = vi.hoisted(() => vi.fn((url: string) => url));
 
 vi.mock("@/auth", () => ({
   auth: authMock,
@@ -10,7 +9,6 @@ vi.mock("@/auth", () => ({
 
 vi.mock("@/lib/rasaConfig", () => ({
   getRasaBots: getRasaBotsMock,
-  withRasaAuth: withRasaAuthMock,
 }));
 
 import { GET } from "@/app/api/runtime-health/route";
@@ -21,7 +19,6 @@ const ORIGINAL_ENV = {
   FEEDBACK_ADMIN_ROLES: process.env.FEEDBACK_ADMIN_ROLES,
   RASA_URL_LIST: process.env.RASA_URL_LIST,
   RASA_PROXY_TARGETS: process.env.RASA_PROXY_TARGETS,
-  RASA_AUTH_TOKEN: process.env.RASA_AUTH_TOKEN,
   ACTION_CLIENT_ID: process.env.ACTION_CLIENT_ID,
   KEYCLOAK_ISSUER: process.env.KEYCLOAK_ISSUER,
   KEYCLOAK_CLIENT_ID: process.env.KEYCLOAK_CLIENT_ID,
@@ -35,7 +32,6 @@ function setCommonEnv() {
     graphql: "https://graphql.example.com",
     analytics: "https://analytics.example.com",
   });
-  process.env.RASA_AUTH_TOKEN = "rasa-token";
   process.env.ACTION_CLIENT_ID = "action-service-client";
   process.env.KEYCLOAK_ISSUER = "https://keycloak.example.com/realms/cva";
   process.env.KEYCLOAK_CLIENT_ID = "client-id";
@@ -53,7 +49,6 @@ function restoreEnv() {
   process.env.FEEDBACK_ADMIN_ROLES = ORIGINAL_ENV.FEEDBACK_ADMIN_ROLES;
   process.env.RASA_URL_LIST = ORIGINAL_ENV.RASA_URL_LIST;
   process.env.RASA_PROXY_TARGETS = ORIGINAL_ENV.RASA_PROXY_TARGETS;
-  process.env.RASA_AUTH_TOKEN = ORIGINAL_ENV.RASA_AUTH_TOKEN;
   process.env.ACTION_CLIENT_ID = ORIGINAL_ENV.ACTION_CLIENT_ID;
   process.env.KEYCLOAK_ISSUER = ORIGINAL_ENV.KEYCLOAK_ISSUER;
   process.env.KEYCLOAK_CLIENT_ID = ORIGINAL_ENV.KEYCLOAK_CLIENT_ID;
@@ -65,8 +60,6 @@ beforeEach(() => {
   setCommonEnv();
   authMock.mockReset();
   getRasaBotsMock.mockReset();
-  withRasaAuthMock.mockReset();
-  withRasaAuthMock.mockImplementation((url: string) => url);
   getRasaBotsMock.mockReturnValue([{ lang: "en", url: "https://rasa-en.example.com" }]);
   global.fetch = vi.fn(async () =>
     new Response(JSON.stringify({ ok: true }), {
@@ -89,6 +82,14 @@ describe("GET /api/runtime-health", () => {
 
     expect(response.status).toBe(401);
     expect(await response.text()).toBe("Unauthorized");
+  });
+
+  it("returns unauthorized for a session whose user lacks the cVA role", async () => {
+    authMock.mockResolvedValue({ error: "MissingCvaRole", user: { email: "user@example.com" } });
+
+    const response = await GET();
+
+    expect(response.status).toBe(401);
   });
 
   it("returns full diagnostics for an admin session", async () => {

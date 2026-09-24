@@ -1,19 +1,14 @@
 import type { DefaultSession, NextAuthConfig } from "next-auth";
 import type {} from "next-auth/jwt";
-import { authBaseConfig, keycloakIssuer } from "@/auth.config";
+import { authBaseConfig } from "@/auth.config";
+import { CVA_ROLE_MISSING_ERROR, NO_ACCESS_PATH, hasRequiredCvaRole } from "@/lib/cvaAccess";
 import { isFeedbackAdmin } from "@/lib/feedbackAccess";
+import { ACCESS_TOKEN_REFRESH_SAFETY_MS, ensureFreshUserTokens } from "@/lib/userTokenRefresh";
 import { getUserAccessToken, getUserTokenEntry, putUserTokens } from "@/lib/userTokenVault";
-
-const parsedRefreshSafetyMs = Number(process.env.NEXTAUTH_ACCESS_TOKEN_REFRESH_SAFETY_MS ?? "90000");
-const ACCESS_TOKEN_REFRESH_SAFETY_MS =
-  Number.isFinite(parsedRefreshSafetyMs) && parsedRefreshSafetyMs >= 0
-    ? parsedRefreshSafetyMs
-    : 90000;
 
 declare module "next-auth" {
   interface Session {
     accessToken?: string;
-    refreshToken?: string;
     accessTokenExpires?: number;
     accessTokenRefreshedAt?: number;
     error?: string;
@@ -31,6 +26,9 @@ declare module "next-auth/jwt" {
     error?: string;
     isFeedbackAdmin?: boolean;
     idToken?: string;
+    /** Whether the user's latest access token carried the required cVA role.
+     * Only ever set from a token we hold; false means positively missing. */
+    hasCvaRole?: boolean;
   }
 }
 
@@ -111,6 +109,19 @@ export const authConfig = {
     async redirect({ url, baseUrl }) {
       return resolveSafeRedirect(url, baseUrl);
     },
+    async signIn({ account, profile }) {
+      // Only users holding the required Keycloak realm role may sign in at
+      // all. Returning a path (not `false`) sends them to a dedicated page
+      // instead of /auth/error, whose auto-redirect back to /signin would
+      // loop for someone who keeps authenticating fine at Keycloak.
+      if (hasRequiredCvaRole(account?.access_token)) {
+        return true;
+      }
+      console.warn("[auth] Sign-in denied: access token lacks the required cVA role", {
+        sub: typeof profile?.sub === "string" ? profile.sub : null,
+      });
+      return NO_ACCESS_PATH;
+    },
     async jwt({ token, account, profile }) {
       // On every fresh sign-in, lock token.sub to the Keycloak user UUID sourced
       // directly from the ID-token claims (profile.sub). This is the only stable
@@ -158,84 +169,41 @@ export const authConfig = {
         }
       }
 
-      const currentTokenEntry = sessionSubject ? await getUserTokenEntry(sessionSubject) : null;
       const currentAccessToken = sessionSubject ? await getUserAccessToken(sessionSubject) : null;
 
       token.isFeedbackAdmin = isFeedbackAdmin({
         email: typeof token.email === "string" ? token.email : null,
         accessToken: currentAccessToken,
       });
+      // Re-evaluated from whichever token we currently hold, so a role revoked
+      // in Keycloak takes effect the next time the access token is refreshed.
+      // With no token to read, the previous verdict stands (an unusable
+      // session is handled by the refresh error path below instead).
+      if (currentAccessToken) {
+        token.hasCvaRole = hasRequiredCvaRole(currentAccessToken);
+      }
 
-      const now = Date.now();
       const refreshWindowStart =
         typeof token.accessTokenExpires === "number"
           ? token.accessTokenExpires - ACCESS_TOKEN_REFRESH_SAFETY_MS
           : undefined;
 
-      if (
-        typeof refreshWindowStart === "number" &&
-        now < refreshWindowStart
-      ) {
+      if (typeof refreshWindowStart !== "number" || Date.now() < refreshWindowStart) {
         return token;
       }
 
-      if (
-        typeof refreshWindowStart === "number" &&
-        now >= refreshWindowStart
-      ) {
-        if (currentTokenEntry?.refreshToken) {
-          try {
-            const url = `${keycloakIssuer}/protocol/openid-connect/token`;
-            const params = new URLSearchParams({
-              client_id: process.env.KEYCLOAK_CLIENT_ID!,
-              client_secret: process.env.KEYCLOAK_CLIENT_SECRET!,
-              grant_type: "refresh_token",
-              refresh_token: currentTokenEntry.refreshToken,
-            });
-
-            const response = await fetch(url, {
-              method: "POST",
-              headers: { "Content-Type": "application/x-www-form-urlencoded" },
-              body: params,
-            });
-
-            const refreshedTokens = await response.json();
-
-            if (!response.ok) {
-              throw new Error(
-                `Token refresh failed: ${response.status} ${response.statusText} ${JSON.stringify(refreshedTokens)}`
-              );
-            }
-
-            token.accessTokenExpires = Date.now() + refreshedTokens.expires_in * 1000;
-            token.accessTokenRefreshedAt = Date.now();
-            token.error = undefined;
-
-            if (sessionSubject && typeof refreshedTokens.access_token === "string") {
-              await putUserTokens({
-                sub: sessionSubject,
-                accessToken: refreshedTokens.access_token,
-                refreshToken:
-                  typeof refreshedTokens.refresh_token === "string"
-                    ? refreshedTokens.refresh_token
-                    : currentTokenEntry.refreshToken,
-                accessTokenExpiresAt: token.accessTokenExpires,
-                accessTokenRefreshedAt: token.accessTokenRefreshedAt,
-              });
-            }
-
-            return token;
-          } catch (error) {
-            token.error = "RefreshAccessTokenError";
-            console.error("Failed to refresh access token:", error);
-            return token;
-          }
-        } else {
-          token.error = "RefreshAccessTokenError";
-          return token;
-        }
+      const fresh = sessionSubject ? await ensureFreshUserTokens(sessionSubject) : null;
+      if (!fresh) {
+        token.error = "RefreshAccessTokenError";
+        return token;
       }
 
+      token.hasCvaRole = hasRequiredCvaRole(fresh.accessToken);
+      token.accessTokenExpires = fresh.expiresAt;
+      if (fresh.refreshed) {
+        token.accessTokenRefreshedAt = Date.now();
+      }
+      token.error = undefined;
       return token;
     },
     async session({ session, token }) {
@@ -264,6 +232,16 @@ export const authConfig = {
         session.error = token.error as string;
       } else if (!session.accessToken && sessionUserId) {
         session.error = "RefreshAccessTokenError";
+      }
+
+      // Positively known to lack the cVA role: expose no user id or token, so
+      // every route that gates on session.user.id / session.accessToken turns
+      // them away, and mark the session so the UI can show a no-access page.
+      if (token.hasCvaRole === false) {
+        session.accessToken = undefined;
+        session.isFeedbackAdmin = false;
+        delete (session.user as { id?: string }).id;
+        session.error = CVA_ROLE_MISSING_ERROR;
       }
 
       return session;
