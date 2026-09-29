@@ -35,7 +35,6 @@ const THUMBNAIL_MARGIN = { top: 5, right: 10, bottom: 0, left: 10 };
 
 // LINE CHART THUMBNAIL
 export function LineChartThumbnail({ chart }: { chart: LineChartDTO }) {
-  const seriesNames = chart.series.map((series) => series.name);
   const bins: (string | number)[] = [];
   const seen = new Set<string>();
   chart.series.forEach((s) =>
@@ -47,12 +46,15 @@ export function LineChartThumbnail({ chart }: { chart: LineChartDTO }) {
       }
     }),
   );
+  const isTimeAxis = chart.metadata?.x_axis?.type === "time";
 
   const data = bins.map((bin) => {
-    const point: Record<string, number | string | null> = { bin };
+    const point: Record<string, number | string | null> = {
+      bin,
+    };
     chart.series.forEach((s) => {
       const val = s.data.find((p) => String(p.x) === String(bin))?.y;
-      point[s.name] = typeof val === "number" && val === 0 ? null : (val ?? null);
+      point[s.name] = isTimeAxis && typeof val === "number" && val === 0 ? null : (val ?? null);
     });
     return point;
   });
@@ -68,7 +70,6 @@ export function LineChartThumbnail({ chart }: { chart: LineChartDTO }) {
             strokeWidth={2}
             dot={false}
             activeDot={false}
-            connectNulls={false}
             isAnimationActive={false}
           />
         ))}
@@ -78,7 +79,6 @@ export function LineChartThumbnail({ chart }: { chart: LineChartDTO }) {
 
 // AREA CHART THUMBNAIL
 export function AreaChartThumbnail({ chart }: { chart: AreaChartDTO }) {
-  const seriesNames = chart.series.map((series) => series.name);
   const bins: (string | number)[] = [];
   const seen = new Set<string>();
   chart.series.forEach((s) =>
@@ -120,7 +120,6 @@ export function AreaChartThumbnail({ chart }: { chart: AreaChartDTO }) {
 
 // BAR CHART THUMBNAIL
 export function BarChartThumbnail({ chart }: { chart: BarChartDTO }) {
-  const seriesNames = chart.series.map((series) => series.name);
   const bins: (string | number)[] = [];
   const seen = new Set<string>();
   chart.series.forEach((s) =>
@@ -136,8 +135,8 @@ export function BarChartThumbnail({ chart }: { chart: BarChartDTO }) {
   const data = bins.map((bin) => {
     const point: Record<string, number | string | null> = { bin };
     chart.series.forEach((s) => {
-      const val = s.data.find((p) => String(p.x) === String(bin))?.y;
-      point[s.name] = typeof val === "number" && val === 0 ? null : (val ?? null);
+      const val = s.data.find((p) => String(p.x) === String(bin))?.y ?? NaN;
+      point[s.name] = val;
     });
     return point;
   });
