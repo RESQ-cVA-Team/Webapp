@@ -24,7 +24,6 @@ interface Props {
 
 export function LineChartView({ chart }: Props) {
   const { elementRef: chartContainerRef, widthPx: chartWidthPx } = useElementWidth<HTMLDivElement>(1000);
-  const seriesNames = chart.series.map((series) => series.name);
   const bins: (string | number)[] = [];
   const seen = new Set<string>();
   chart.series.forEach((s) =>
@@ -53,7 +52,7 @@ export function LineChartView({ chart }: Props) {
   });
   const tickLayout = getDynamicCategoryTickLayout({
     chartWidthPx,
-      pointCount: data.length,
+    pointCount: data.length,
     rotateThresholdPx: 70,
     horizontalMinTickSpacingPx: 10,
     rotatedMinTickSpacingPx: 30,
@@ -66,7 +65,7 @@ export function LineChartView({ chart }: Props) {
     <div className="h-full w-full flex flex-col flex-1">
       <h3 className="text-lg font-semibold mb-2 text-primary">{chart.metadata.title}</h3>
       <div ref={chartContainerRef} className="flex-1 min-h-0">
-          <LineChart data={data} margin={{ top: 20, right: 50, bottom: 0, left: 20 }} responsive={true} style={{ width: '100%', height: '100%' }}>
+          <LineChart data={data} margin={{ top: 20, right: 50, bottom: 0, left: 20 }} responsive={true}  style={{ width: '100%', height: '100%' }}>
             <CartesianGrid strokeDasharray="3 3" />
               <XAxis
                 height={tickLayout.height}
