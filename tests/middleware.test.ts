@@ -7,6 +7,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite
 const SECRET = vi.hoisted(() => {
   const secret = "middleware-test-secret-not-used-anywhere-else";
   process.env.NEXTAUTH_SECRET = secret;
+  process.env.NEXTAUTH_URL = "http://localhost:3000";
   process.env.AUTH_TRUST_HOST = "true";
   process.env.KEYCLOAK_ISSUER = "https://keycloak.test/realms/cva";
   process.env.KEYCLOAK_CLIENT_ID = "cva";
