@@ -43,7 +43,7 @@ export function SideMenu() {
 
   const [threads, setThreads] = useState<Thread[]>([]);
   const [openId, setOpenId] = useState<number | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Thread[]>([]);
@@ -191,10 +191,6 @@ export function SideMenu() {
     }
   }, [setCurrentThreadId]);
 
-
-  useEffect(() => {
-    setOpen(true);
-  }, [setOpen]);
 
   useEffect(() => {
     getThreads();
