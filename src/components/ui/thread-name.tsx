@@ -7,7 +7,7 @@ type ThreadListResponse = {
 };
 
 export function ThreadName() {
-    const { currentThreadId } = useThread();
+    const { currentThreadId, threadsResolved } = useThread();
     
     const getCurrentThreadName = React.useCallback(async () => {
       if (!currentThreadId) return "No Thread Selected";
@@ -28,10 +28,16 @@ export function ThreadName() {
       }
     }, [currentThreadId]);
     
-    const [name, setName] = React.useState("Loading...");
+    const [resolved, setResolved] = React.useState<{ id: number | null; name: string } | null>(null);
   React.useEffect(() => {
-      getCurrentThreadName().then(setName);
-    }, [getCurrentThreadName]);
+      let cancelled = false;
+      getCurrentThreadName().then((name) => {
+        if (!cancelled) setResolved({ id: currentThreadId, name });
+      });
+      return () => { cancelled = true; };
+    }, [getCurrentThreadName, currentThreadId]);
+
+  const name = threadsResolved && resolved?.id === currentThreadId ? resolved.name : "Loading...";
 
   return (
     <span className="font-bold text-white truncate min-w-0">{name}</span>

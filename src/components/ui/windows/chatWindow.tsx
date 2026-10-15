@@ -182,7 +182,7 @@ const LONG_ACTION_LOCK_TTL_MS = 3 * 60 * 1000;
 
 
 export default function ChatWindow() {
-  const { currentThreadId } = useThread();
+  const { currentThreadId, threadsResolved } = useThread();
   const [messages, setMessages] = useState<Message[]>([]);
   const [autocompleteItems, setAutocompleteItems] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -556,7 +556,7 @@ export default function ChatWindow() {
         <WaveAsset className=" absolute w-full max-h-15 min-h-10 fill-gradient-to-r from-primary to-accent align-self bg-transparent z-1 p-0 pointer-events-none" />
       </div>
       <div className=" p-4 flex-1 pt-0 flex flex-col h-full min-h-0 w-full">
-        {loading ? (
+        {loading || !threadsResolved ? (
           <div className="flex-1 flex flex-col gap-3 h-full w-full">
             <div className="flex flex-col h-full gap-2 w-full">
               <Skeleton className="h-6 max-w-[60%] mt-10 bg-muted" />
