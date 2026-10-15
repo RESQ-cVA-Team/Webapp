@@ -558,14 +558,13 @@ export default function ChatWindow() {
       <div className=" p-4 flex-1 pt-0 flex flex-col h-full min-h-0 w-full">
         {loading ? (
           <div className="flex-1 flex flex-col gap-3 h-full w-full">
-            <div className="flex flex-col h-full gap-2 w-full">
-              <Skeleton className="h-6 max-w-[60%] mt-10 bg-muted" />
-              <Skeleton className="h-6 max-w-[70%] bg-muted" />
-              <Skeleton className="h-6 max-w-[70%] bg-muted" />
-              <Skeleton className="h-6 max-w-[50%] bg-muted" />
-              <Skeleton className="h-6 max-w-[60%] mt-10 bg-muted" />
-              <Skeleton className="h-6 max-w-[70%] bg-muted" />
-              <Skeleton className="h-6 max-w-[50%] bg-muted" />
+            <div className="flex flex-col h-full gap-2 w-full p-2 pt-0 pb-0">
+              <Skeleton className="h-9 shrink-0 max-w-[30%] mt-10 bg-muted" />
+              <Skeleton className="h-9 shrink-0 max-w-[70%] bg-muted" />
+              <Skeleton className="h-9 shrink-0 w-[70%] self-end bg-accent/70" />
+              <Skeleton className="h-9 shrink-0 max-w-[60%] bg-muted" />
+              <Skeleton className="h-9 shrink-0 max-w-[50%] bg-muted" />
+              <Skeleton className="h-9 shrink-0 w-[60%] self-end bg-accent/70" />
             </div>
           </div>
          ) : (
