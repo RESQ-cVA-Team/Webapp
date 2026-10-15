@@ -50,7 +50,7 @@ export function SideMenu() {
   const [selectedSearchIndex, setSelectedSearchIndex] = useState(0);
   const searchResultRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
-  const { currentThreadId, setCurrentThreadId } = useThread();
+  const { currentThreadId, setCurrentThreadId, setThreadsResolved } = useThread();
   const currentThreadIdRef = useRef<number | null>(currentThreadId);
 
   useEffect(() => {
@@ -188,8 +188,9 @@ export function SideMenu() {
       console.error('Error fetching threads:', err);
     } finally {
       setLoading(false);
+      setThreadsResolved(true);
     }
-  }, [setCurrentThreadId]);
+  }, [setCurrentThreadId, setThreadsResolved]);
 
 
   useEffect(() => {
