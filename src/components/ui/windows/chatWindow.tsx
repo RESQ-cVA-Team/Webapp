@@ -547,7 +547,7 @@ export default function ChatWindow() {
   return (
     <div className=" flex flex-col h-full">
       <div className="gap-0 bg-transparent relative min-h-0 flex-none"  >  
-        <div className="w-full h-15 rounded-t-xl z-10 flex items-center justify-between px-10 pr-4 bg-gradient-to-tl from-secondary to-primary">
+        <div className="w-full h-15 z-10 flex items-center justify-between px-10 pr-4 bg-gradient-to-tl from-secondary to-primary">
           <div className="flex h-full min-h-0 w-full items-center justify-between gap-2">
             <ThreadName />
             <InfoAlertWindow />
