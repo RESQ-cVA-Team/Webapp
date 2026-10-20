@@ -292,11 +292,10 @@ export function SideMenu() {
           {open ? <ArrowLeftToLine className="size-4 ml-auto" /> : <PanelLeftIcon className="size-4 ml-auto" />}
           </SidebarMenuButton> 
         <SidebarSeparator />
-      </SidebarHeader>
+      
 
       {/* Utility Buttons*/}
-      <SidebarContent className="center-items">
-        <SidebarGroup>
+        <SidebarGroup className="px-0">
           <Dialog>
             <DialogTrigger asChild>
 
@@ -412,12 +411,17 @@ export function SideMenu() {
             </DialogContent>
           </Dialog>
         </SidebarGroup>
-
-        {/*Conversation Threads List*/}
-        <SidebarGroup className="group-data-[collapsible=icon]:hidden gap-1">
+        <SidebarGroup className="group-data-[collapsible=icon]:hidden">
           <div className="text-sidebar-foreground/70 text-xs truncate">
             {t('threads.menu.list')}
-          </div> 
+          </div>
+        </SidebarGroup>
+      </SidebarHeader>
+
+      <SidebarContent>
+        {/*Conversation Threads List*/}
+        <SidebarGroup className="group-data-[collapsible=icon]:hidden gap-1">
+
           <div> 
             {loading ? (
               <div className="flex flex-col gap-1">

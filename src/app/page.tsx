@@ -32,6 +32,8 @@ export default function HomePage() {
             <ResizableHandle className="min-h-1 bg-transparent" />
             <ResizablePanel id="history" defaultSize="20%" minSize="20%" maxSize="20%" collapsible>
               <div className="flex h-full items-center justify-center p-2">
+            <ResizablePanel defaultSize="20%" minSize="20%" maxSize="20%" collapsible>
+              <div className="flex h-full items-center justify-center pl-1 pt-1 p-2">
                 <Card className="h-full w-full p-0">
                     <CardContent className="h-full w-full p-2">
                         <HistoryWindow />
