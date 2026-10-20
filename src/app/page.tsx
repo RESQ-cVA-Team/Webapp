@@ -20,7 +20,7 @@ export default function HomePage() {
         <ResizableHandle className="min-w-1 bg-transparent" />
         <ResizablePanel id="right" defaultSize="70%" minSize="15%" collapsible>
           <ResizablePanelGroup direction="vertical" defaultLayout={{ viz: 80, history: 20 }} className="h-full">
-            <ResizablePanel id="viz" defaultSize="75%" minSize="25%" collapsible>
+            <ResizablePanel id="viz" defaultSize="80%" minSize="25%" collapsible>
               <div className="flex h-full items-center justify-center pl-1 pb-1 p-2">
                 <Card className="h-full w-full">
                     <CardContent className="h-full w-full">
@@ -31,8 +31,6 @@ export default function HomePage() {
             </ResizablePanel>
             <ResizableHandle className="min-h-1 bg-transparent" />
             <ResizablePanel id="history" defaultSize="20%" minSize="20%" maxSize="20%" collapsible>
-              <div className="flex h-full items-center justify-center p-2">
-            <ResizablePanel defaultSize="20%" minSize="20%" maxSize="20%" collapsible>
               <div className="flex h-full items-center justify-center pl-1 pt-1 p-2">
                 <Card className="h-full w-full p-0">
                     <CardContent className="h-full w-full p-2">
