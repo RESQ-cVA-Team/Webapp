@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { isSessionAllowed } from "@/lib/cvaAccess";
 import { getFeedbackIdentityFromSession } from "@/lib/feedbackAccess";
 import { getRasaBots } from "@/lib/rasaConfig";
+import { probeLiveness, probePublicGet, sharedUpstreamHealth, type UpstreamHealthItem } from "@/lib/upstreamHealth";
 
 type HealthStatus = "up" | "degraded" | "down" | "misconfigured" | "unknown";
 
@@ -22,15 +23,7 @@ type ConfigHealthItem = {
   detail: string;
 };
 
-type ExternalHealthItem = {
-  key: string;
-  label: string;
-  status: HealthStatus;
-  detail: string;
-  httpStatus?: number;
-  latencyMs?: number;
-  checkedAt: string;
-};
+type ExternalHealthItem = UpstreamHealthItem;
 
 type RuntimeHealthResponse = {
   checkedAt: string;
@@ -109,31 +102,21 @@ function joinUrl(baseUrl: string, path: string): string {
   return `${normalizedBase}${normalizedPath}`;
 }
 
-function resolveGraphqlUrl(): string | null {
-  const targets = parseProxyTargets();
-  const base = targets.graphql;
-  if (!base) return null;
-  return joinUrl(base, "/api/graphql/aggregation");
+// The aggregation and analytics services each publish a public liveness endpoint.
+function resolveAggregationLiveUrl(): string | null {
+  const base = parseProxyTargets().graphql;
+  return base ? joinUrl(base, "/api/rest/aggregation/health/live") : null;
 }
 
-function resolveAnalyticsUrl(): string | null {
-  const targets = parseProxyTargets();
-  const base = targets.analytics;
-  if (!base) return null;
-  return joinUrl(base, "/api/rest/analytics-center/countries?limit=1&offset=0");
+function resolveAnalyticsLiveUrl(): string | null {
+  const base = parseProxyTargets().analytics;
+  return base ? joinUrl(base, "/api/rest/analytics-center/health/live") : null;
 }
 
 function resolveKeycloakDiscoveryUrl(): string | null {
   const issuer = readEnv("KEYCLOAK_ISSUER");
   if (!issuer) return null;
   return joinUrl(issuer, "/.well-known/openid-configuration");
-}
-
-function classifyHttpStatus(status: number): HealthStatus {
-  if (status === 401 || status === 403) return "misconfigured";
-  if (status >= 500) return "down";
-  if (status >= 400) return "degraded";
-  return "up";
 }
 
 async function probeVersionEndpoint(params: {
@@ -198,147 +181,6 @@ async function probeVersionEndpoint(params: {
       label: params.label,
       status: latencyMs > 1500 ? "degraded" : "up",
       detail: latencyMs > 1500 ? "Service reachable but slow" : "Service reachable",
-      httpStatus: response.status,
-      latencyMs,
-      checkedAt,
-    };
-  } catch (error) {
-    const latencyMs = Date.now() - started;
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return {
-      key: params.key,
-      label: params.label,
-      status: "down",
-      detail: `Probe failed: ${message}`,
-      latencyMs,
-      checkedAt,
-    };
-  } finally {
-    clearTimeout(timeoutId);
-  }
-}
-
-async function probeExternalGet(params: {
-  key: string;
-  label: string;
-  url: string | null;
-  accessToken?: string | null;
-}): Promise<ExternalHealthItem> {
-  const checkedAt = new Date().toISOString();
-  if (!params.url) {
-    return {
-      key: params.key,
-      label: params.label,
-      status: "misconfigured",
-      detail: "External endpoint URL is not configured",
-      checkedAt,
-    };
-  }
-
-  const started = Date.now();
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 2500);
-
-  try {
-    const headers: Record<string, string> = {
-      Accept: "application/json",
-    };
-    if (params.accessToken) {
-      headers.Authorization = `Bearer ${params.accessToken}`;
-    }
-
-    const response = await fetch(params.url, {
-      method: "GET",
-      headers,
-      cache: "no-store",
-      signal: controller.signal,
-    });
-    const latencyMs = Date.now() - started;
-    const status = classifyHttpStatus(response.status);
-
-    return {
-      key: params.key,
-      label: params.label,
-      status,
-      detail: status === "up" ? "Endpoint reachable" : `Endpoint returned ${response.status}`,
-      httpStatus: response.status,
-      latencyMs,
-      checkedAt,
-    };
-  } catch (error) {
-    const latencyMs = Date.now() - started;
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return {
-      key: params.key,
-      label: params.label,
-      status: "down",
-      detail: `Probe failed: ${message}`,
-      latencyMs,
-      checkedAt,
-    };
-  } finally {
-    clearTimeout(timeoutId);
-  }
-}
-
-async function probeExternalGraphql(params: {
-  key: string;
-  label: string;
-  url: string | null;
-  accessToken?: string | null;
-}): Promise<ExternalHealthItem> {
-  const checkedAt = new Date().toISOString();
-  if (!params.url) {
-    return {
-      key: params.key,
-      label: params.label,
-      status: "misconfigured",
-      detail: "GraphQL endpoint URL is not configured",
-      checkedAt,
-    };
-  }
-
-  const started = Date.now();
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 2500);
-
-  try {
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    };
-    if (params.accessToken) {
-      headers.Authorization = `Bearer ${params.accessToken}`;
-    }
-
-    const response = await fetch(params.url, {
-      method: "POST",
-      headers,
-      cache: "no-store",
-      signal: controller.signal,
-      body: JSON.stringify({ query: "query { __typename }" }),
-    });
-
-    const latencyMs = Date.now() - started;
-    const status = classifyHttpStatus(response.status);
-
-    if (!response.ok) {
-      return {
-        key: params.key,
-        label: params.label,
-        status,
-        detail: `GraphQL endpoint returned ${response.status}`,
-        httpStatus: response.status,
-        latencyMs,
-        checkedAt,
-      };
-    }
-
-    return {
-      key: params.key,
-      label: params.label,
-      status: latencyMs > 2000 ? "degraded" : "up",
-      detail: latencyMs > 2000 ? "GraphQL reachable but slow" : "GraphQL reachable",
       httpStatus: response.status,
       latencyMs,
       checkedAt,
@@ -435,7 +277,6 @@ export async function GET() {
   const identity = getFeedbackIdentityFromSession(session);
   const isDevRuntime = process.env.NODE_ENV === "development";
   const canViewFullDiagnostics = isDevRuntime || identity.isAdmin;
-  const accessToken = typeof session.accessToken === "string" ? session.accessToken : null;
 
   const rasaTargets = getRasaVersionTargets();
   const rasaChecks = rasaTargets.length > 0
@@ -456,32 +297,21 @@ export async function GET() {
         }),
       ];
 
-  const [webapp, action, upstreamGraphql, upstreamAnalytics, keycloak, ...rasaResults] = await Promise.all([
+  const [webapp, action, external, rasaResults] = await Promise.all([
     probeVersionEndpoint({ key: "webapp", label: "Webapp", url: getWebappVersionUrl() }),
     probeVersionEndpoint({ key: "action", label: "Action", url: readEnv("ACTION_VERSION_URL") }),
-    probeExternalGraphql({
-      key: "upstream_graphql",
-      label: "Upstream GraphQL",
-      url: resolveGraphqlUrl(),
-      accessToken,
-    }),
-    probeExternalGet({
-      key: "upstream_analytics",
-      label: "Upstream Analytics REST",
-      url: resolveAnalyticsUrl(),
-      accessToken,
-    }),
-    probeExternalGet({
-      key: "keycloak_discovery",
-      label: "Keycloak Discovery",
-      url: resolveKeycloakDiscoveryUrl(),
-    }),
-    ...rasaChecks,
+    sharedUpstreamHealth(() =>
+      Promise.all([
+        probeLiveness({ key: "upstream_graphql", label: "Upstream aggregation", url: resolveAggregationLiveUrl() }),
+        probeLiveness({ key: "upstream_analytics", label: "Upstream analytics", url: resolveAnalyticsLiveUrl() }),
+        probePublicGet({ key: "keycloak_discovery", label: "Keycloak Discovery", url: resolveKeycloakDiscoveryUrl() }),
+      ])
+    ),
+    Promise.all(rasaChecks),
   ]);
 
   const config = collectConfigHealth();
   const services = [webapp, ...rasaResults, action];
-  const external = [upstreamGraphql, upstreamAnalytics, keycloak];
   const overall = computeOverall(services, config, external);
 
   const responseBody: RuntimeHealthResponse = canViewFullDiagnostics
