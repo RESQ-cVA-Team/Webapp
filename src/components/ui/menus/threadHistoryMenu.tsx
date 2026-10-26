@@ -26,6 +26,8 @@ import { useTranslation } from "react-i18next";
 import { Skeleton } from "@/components/ui/skeleton";
 
 
+const THREADS_FETCH_TIMEOUT_MS = 10_000;
+
 type Thread = {
   id: number;
   name: string;
@@ -156,8 +158,10 @@ export function SideMenu() {
 
   const getThreads = useCallback(async () => {
     setLoading(true);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), THREADS_FETCH_TIMEOUT_MS);
     try {
-      const res = await fetch('/api/threads', { method: 'GET', cache: 'no-store' });
+      const res = await fetch('/api/threads', { method: 'GET', cache: 'no-store', signal: controller.signal });
 
       if (!res.ok) {
         if (isAuthStatus(res.status)) {
@@ -187,6 +191,7 @@ export function SideMenu() {
     } catch (err) {
       console.error('Error fetching threads:', err);
     } finally {
+      clearTimeout(timeout);
       setLoading(false);
       setThreadsResolved(true);
     }
