@@ -1,4 +1,4 @@
-import type { ChartSeries } from "@/models/dto/types";
+import type { AngelsAwardsThresholds, ChartSeries } from "@/models/dto/types";
 
 export type ChartPointValue = number | string | null;
 
@@ -99,3 +99,76 @@ export function getSeriesColor(index: number) {
 
   return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
 }
+
+export interface AngelsAwardsZone {
+  from: number;
+  to?: number;
+  label: string;
+  color: string;
+}
+
+interface ParsedAngelsAwardsThreshold {
+  tier: string;
+  value: number;
+  operator: "lt" | "gt" | "gte";
+}
+
+export function getAngelsAwardsZones(
+  thresholdsByMetric?: AngelsAwardsThresholds,
+) {
+  const tierColors: Record<string, string> = {
+    gold: "var(--aa-gold)",
+    platinum: "var(--aa-platinum)",
+    diamond: "var(--aa-diamond)",
+  };
+
+  return Object.entries(thresholdsByMetric ?? {}).flatMap(([metric, thresholds]) => {
+    const parsedTiers: ParsedAngelsAwardsThreshold[] = Object.entries(thresholds).map(
+      ([tier, threshold]) => {
+        if (typeof threshold === "number") {
+          return { tier, value: threshold, operator: "gte" };
+        }
+
+        if ("lt" in threshold) {
+          return { tier, value: threshold.lt, operator: "lt" };
+        }
+
+        return { tier, value: threshold.gt, operator: "gt" };
+      },
+    );
+    const diamondThreshold = parsedTiers.find(
+      ({ tier }) => tier.toLowerCase() === "diamond",
+    );
+    const tiers = parsedTiers.filter(
+      ({ tier, value, operator }) =>
+        tier.toLowerCase() !== "platinum" ||
+        value !== diamondThreshold?.value ||
+        operator !== diamondThreshold?.operator,
+    );
+    const lowerBoundTiers = tiers
+      .filter(({ operator }) => operator !== "lt")
+      .sort((a, b) => a.value - b.value);
+
+    return tiers.map(({ tier, value, operator }) => {
+      const nextThreshold = operator === "lt"
+        ? undefined
+        : lowerBoundTiers.find(
+            (candidate) => candidate.value > value,
+          )?.value;
+      const tierName = tier.charAt(0).toUpperCase() + tier.slice(1);
+      const operatorLabel = operator === "lt" ? "<" : operator === "gt" ? ">" : "≥";
+      const thresholdLabel =
+        metric.toUpperCase() === "AA_STROKE_UNIT" && operator === "gt" && value === 0
+          ? "YES"
+          : `${operatorLabel} ${value}`;
+
+      return {
+        from: operator === "lt" ? 0 : value,
+        to: operator === "lt" ? value : nextThreshold,
+        label: `${tierName} (${thresholdLabel})`,
+        color: tierColors[tier.toLowerCase()] ?? "var(--foreground)",
+      };
+    });
+  });
+}
+

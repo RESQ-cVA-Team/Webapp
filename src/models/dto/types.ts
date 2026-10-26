@@ -38,6 +38,15 @@ export interface ChartAxis {
   unit?: string;
 }
 
+export type AngelsAwardsThreshold =
+  | number
+  | { lt: number }
+  | { gt: number };
+export type AngelsAwardsThresholds = Record<
+  string,
+  Record<string, AngelsAwardsThreshold>
+>;
+
 export interface ChartMetadata {
   title: string;
   description?: string;
@@ -46,4 +55,5 @@ export interface ChartMetadata {
   legend?: boolean;
   width?: number;
   height?: number;
+  angels_awards?: AngelsAwardsThresholds;
 }

@@ -11,10 +11,13 @@ import {
 } from "recharts";
 import type { BarChartDTO } from "@/models/dto/charts";
 import {
+  getAngelsAwardsZones,
   getDynamicCategoryTickLayout,
   getSeriesColor,
   buildNumericBucketLabel,
 } from "@/lib/chart-utils";
+import { ChartAwardZones } from "./ChartAwardZones";
+import { ChartLegend } from "./ChartLegend";
 import { useElementWidth } from "@/hooks/use-element-width";
 
 interface Props {
@@ -23,7 +26,6 @@ interface Props {
 
 export function BarChartView({ chart }: Props) {
   const { elementRef: chartContainerRef, widthPx: chartWidthPx } = useElementWidth<HTMLDivElement>(1000);
-  const seriesNames = chart.series.map((series) => series.name);
   const bins: (string | number)[] = [];
   const seen = new Set<string>();
   chart.series.forEach((s) =>
@@ -63,7 +65,7 @@ export function BarChartView({ chart }: Props) {
   });
   const tickLayout = getDynamicCategoryTickLayout({
     chartWidthPx: chartWidthPx,
-      pointCount: data.length,
+    pointCount: data.length,
     rotateThresholdPx: 70,
     horizontalMinTickSpacingPx: 10,
     rotatedMinTickSpacingPx: 30,
@@ -75,6 +77,7 @@ export function BarChartView({ chart }: Props) {
   const layout: "horizontal" | "vertical" =
     (chart.orientation ?? "vertical") === "horizontal" ? "vertical" : "horizontal";
 
+  const awardZones = getAngelsAwardsZones(chart.metadata.angels_awards);
   return (
     <div className="h-full w-full flex flex-col flex-1">
       <h3 className="text-lg font-semibold mb-2 text-primary">{chart.metadata.title}</h3>
@@ -131,7 +134,13 @@ export function BarChartView({ chart }: Props) {
               animationEasing="spring" 
               contentStyle={{ backgroundColor: "var(--card)", borderRadius: "var(--radius)",  minWidth: "100px", fontSize: "0.75rem", fontWeight: "bold" }}
             />
-            <Legend />
+            <Legend content={<ChartLegend zones={awardZones} />} />
+            {awardZones.length > 0 && (
+              <ChartAwardZones
+                zones={awardZones}
+                axis={layout === "vertical" ? "x" : "y"}
+              />
+            )}
             {chart.series.map((s, i) => (
               <Bar
                 key={s.name}

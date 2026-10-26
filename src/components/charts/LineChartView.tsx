@@ -8,14 +8,16 @@ import {
   Tooltip,
   Legend,
   CartesianGrid,
-  ResponsiveContainer,
 } from "recharts";
 import type { LineChartDTO } from "@/models/dto/charts";
 import {
+  getAngelsAwardsZones,
   getDynamicCategoryTickLayout,
   getSeriesColor,
   getPointLabelMap,
 } from "@/lib/chart-utils";
+import { ChartAwardZones } from "./ChartAwardZones";
+import { ChartLegend } from "./ChartLegend";
 import { useElementWidth } from "@/hooks/use-element-width";
 
 interface Props {
@@ -60,6 +62,7 @@ export function LineChartView({ chart }: Props) {
     labelHeightBig: 70,
     labelHeightSmall: 50,
   });
+  const awardZones = getAngelsAwardsZones(chart.metadata.angels_awards);
 
   return (
     <div className="h-full w-full flex flex-col flex-1">
@@ -99,7 +102,8 @@ export function LineChartView({ chart }: Props) {
                 dx: -20,
               }}
             />
-            <Legend />
+            <Legend content={<ChartLegend zones={awardZones} />} />
+            {awardZones.length > 0 && <ChartAwardZones zones={awardZones} />}
            <Tooltip 
               animationEasing="spring"
               labelFormatter={(label) => pointLabelMap.get(String(label)) ?? String(label)}
