@@ -94,9 +94,6 @@ importers:
         specifier: ^5.0.5
         version: 5.0.15(@types/react@19.2.18)(immer@11.1.11)(react@19.2.8)(use-sync-external-store@1.6.0(react@19.2.8))
     devDependencies:
-      '@eslint/eslintrc':
-        specifier: ^3
-        version: 3.3.6
       '@tailwindcss/postcss':
         specifier: ^4
         version: 4.3.3
