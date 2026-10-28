@@ -26,6 +26,8 @@ import { useTranslation } from "react-i18next";
 import { Skeleton } from "@/components/ui/skeleton";
 
 
+const THREADS_FETCH_TIMEOUT_MS = 10_000;
+
 type Thread = {
   id: number;
   name: string;
@@ -43,14 +45,14 @@ export function SideMenu() {
 
   const [threads, setThreads] = useState<Thread[]>([]);
   const [openId, setOpenId] = useState<number | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Thread[]>([]);
   const [selectedSearchIndex, setSelectedSearchIndex] = useState(0);
   const searchResultRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
-  const { currentThreadId, setCurrentThreadId } = useThread();
+  const { currentThreadId, setCurrentThreadId, setThreadsResolved } = useThread();
   const currentThreadIdRef = useRef<number | null>(currentThreadId);
 
   useEffect(() => {
@@ -156,8 +158,10 @@ export function SideMenu() {
 
   const getThreads = useCallback(async () => {
     setLoading(true);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), THREADS_FETCH_TIMEOUT_MS);
     try {
-      const res = await fetch('/api/threads', { method: 'GET', cache: 'no-store' });
+      const res = await fetch('/api/threads', { method: 'GET', cache: 'no-store', signal: controller.signal });
 
       if (!res.ok) {
         if (isAuthStatus(res.status)) {
@@ -187,14 +191,12 @@ export function SideMenu() {
     } catch (err) {
       console.error('Error fetching threads:', err);
     } finally {
+      clearTimeout(timeout);
       setLoading(false);
+      setThreadsResolved(true);
     }
-  }, [setCurrentThreadId]);
+  }, [setCurrentThreadId, setThreadsResolved]);
 
-
-  useEffect(() => {
-    setOpen(true);
-  }, [setOpen]);
 
   useEffect(() => {
     getThreads();

@@ -40,6 +40,7 @@ const chartRefs = useRef<Record<string, HTMLDivElement | null>>({});
     }
 
     clearHistory();
+    setVisualization(null);
     setSelectedChartIndex(null);
     setSelectedStatisticsIndex(null);
 
@@ -140,12 +141,19 @@ const chartRefs = useRef<Record<string, HTMLDivElement | null>>({});
     };
   }, []);
 
+  const hasItems = history.some((viz) => (viz.charts?.length ?? 0) > 0 || (viz.stats?.length ?? 0) > 0);
+
   return (
     <div ref={containerRef} className="w-full h-full min-h-0 min-w-0 flex flex-col p-4">
       <p className=" font-semibold text-primary">{t('history.title')}</p>
+      {!hasItems && (
+        <div className="flex flex-1 items-center justify-center text-center text-muted-foreground">
+          {t('history.empty')}
+        </div>
+      )}
       <ScrollArea
         viewportRef={viewportRef}
-        className="w-full flex-1 min-h-0 min-w-0"
+        className={clsx("w-full flex-1 min-h-0 min-w-0", !hasItems && "hidden")}
         onWheel={(e) => {
           const viewport = viewportRef.current;
 
