@@ -1,4 +1,4 @@
-import type { ChartSeries } from "@/models/dto/types";
+import type { AngelsAwardsLevel, AngelsAwardsRequirements, ChartSeries } from "@/models/dto/types";
 
 export type ChartPointValue = number | string | null;
 
@@ -99,3 +99,57 @@ export function getSeriesColor(index: number) {
 
   return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
 }
+
+export interface AngelsAwardsZone {
+  from: number;
+  to?: number;
+  label: string;
+  color: string;
+}
+
+export interface AngelsAwardsCondition {
+  label: string;
+  color: string;
+}
+
+const AWARD_LEVELS: AngelsAwardsLevel[] = ["gold", "platinum", "diamond"];
+const AWARD_COLORS: Record<AngelsAwardsLevel, string> = {
+  gold: "var(--aa-gold)",
+  platinum: "var(--aa-platinum)",
+  diamond: "var(--aa-diamond)",
+};
+const levelName = (level: AngelsAwardsLevel) => level.charAt(0).toUpperCase() + level.slice(1);
+
+/** One zone per minimum share, from that share up to the next; levels with the same minimum share a zone. */
+export function getAngelsAwardsZones(requirementsByMetric?: AngelsAwardsRequirements): AngelsAwardsZone[] {
+  return Object.values(requirementsByMetric ?? {}).flatMap((requirements) => {
+    const levelsByMinimum = new Map<number, AngelsAwardsLevel[]>();
+    for (const level of AWARD_LEVELS) {
+      const requirement = requirements[level];
+      if (requirement && "min_percent" in requirement) {
+        levelsByMinimum.set(requirement.min_percent, [...(levelsByMinimum.get(requirement.min_percent) ?? []), level]);
+      }
+    }
+    const minimums = [...levelsByMinimum.keys()].sort((a, b) => a - b);
+    return minimums.map((minimum, index) => {
+      const levels = levelsByMinimum.get(minimum) ?? [];
+      return {
+        from: minimum,
+        to: minimums[index + 1],
+        label: `${levels.map(levelName).join(" / ")} (≥ ${minimum}%)`,
+        color: AWARD_COLORS[levels[levels.length - 1]],
+      };
+    });
+  });
+}
+
+/** Award levels that ask for a condition rather than a share; they have no zone on the value axis. */
+export function getAngelsAwardsConditions(requirementsByMetric?: AngelsAwardsRequirements): AngelsAwardsCondition[] {
+  return Object.values(requirementsByMetric ?? {}).flatMap((requirements) =>
+    AWARD_LEVELS.filter((level) => {
+      const requirement = requirements[level];
+      return requirement !== undefined && "required" in requirement;
+    }).map((level) => ({ label: `${levelName(level)} (required)`, color: AWARD_COLORS[level] })),
+  );
+}
+
