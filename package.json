@@ -6,7 +6,7 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "node server.js",
-    "lint": "eslint . --ignore-pattern .next --ignore-pattern next-env.d.ts",
+    "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -38,7 +38,6 @@
     "zustand": "^5.0.5"
   },
   "devDependencies": {
-    "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^26",
     "@types/pg": "^8.20.0",
