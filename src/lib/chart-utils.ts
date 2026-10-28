@@ -1,4 +1,4 @@
-import type { AngelsAwardsThresholds, ChartSeries } from "@/models/dto/types";
+import type { AngelsAwardsLevel, AngelsAwardsRequirements, ChartSeries } from "@/models/dto/types";
 
 export type ChartPointValue = number | string | null;
 
@@ -107,68 +107,49 @@ export interface AngelsAwardsZone {
   color: string;
 }
 
-interface ParsedAngelsAwardsThreshold {
-  tier: string;
-  value: number;
-  operator: "lt" | "gt" | "gte";
+export interface AngelsAwardsCondition {
+  label: string;
+  color: string;
 }
 
-export function getAngelsAwardsZones(
-  thresholdsByMetric?: AngelsAwardsThresholds,
-) {
-  const tierColors: Record<string, string> = {
-    gold: "var(--aa-gold)",
-    platinum: "var(--aa-platinum)",
-    diamond: "var(--aa-diamond)",
-  };
+const AWARD_LEVELS: AngelsAwardsLevel[] = ["gold", "platinum", "diamond"];
+const AWARD_COLORS: Record<AngelsAwardsLevel, string> = {
+  gold: "var(--aa-gold)",
+  platinum: "var(--aa-platinum)",
+  diamond: "var(--aa-diamond)",
+};
+const levelName = (level: AngelsAwardsLevel) => level.charAt(0).toUpperCase() + level.slice(1);
 
-  return Object.entries(thresholdsByMetric ?? {}).flatMap(([metric, thresholds]) => {
-    const parsedTiers: ParsedAngelsAwardsThreshold[] = Object.entries(thresholds).map(
-      ([tier, threshold]) => {
-        if (typeof threshold === "number") {
-          return { tier, value: threshold, operator: "gte" };
-        }
-
-        if ("lt" in threshold) {
-          return { tier, value: threshold.lt, operator: "lt" };
-        }
-
-        return { tier, value: threshold.gt, operator: "gt" };
-      },
-    );
-    const diamondThreshold = parsedTiers.find(
-      ({ tier }) => tier.toLowerCase() === "diamond",
-    );
-    const tiers = parsedTiers.filter(
-      ({ tier, value, operator }) =>
-        tier.toLowerCase() !== "platinum" ||
-        value !== diamondThreshold?.value ||
-        operator !== diamondThreshold?.operator,
-    );
-    const lowerBoundTiers = tiers
-      .filter(({ operator }) => operator !== "lt")
-      .sort((a, b) => a.value - b.value);
-
-    return tiers.map(({ tier, value, operator }) => {
-      const nextThreshold = operator === "lt"
-        ? undefined
-        : lowerBoundTiers.find(
-            (candidate) => candidate.value > value,
-          )?.value;
-      const tierName = tier.charAt(0).toUpperCase() + tier.slice(1);
-      const operatorLabel = operator === "lt" ? "<" : operator === "gt" ? ">" : "≥";
-      const thresholdLabel =
-        metric.toUpperCase() === "AA_STROKE_UNIT" && operator === "gt" && value === 0
-          ? "YES"
-          : `${operatorLabel} ${value}`;
-
+/** One zone per minimum share, from that share up to the next; levels with the same minimum share a zone. */
+export function getAngelsAwardsZones(requirementsByMetric?: AngelsAwardsRequirements): AngelsAwardsZone[] {
+  return Object.values(requirementsByMetric ?? {}).flatMap((requirements) => {
+    const levelsByMinimum = new Map<number, AngelsAwardsLevel[]>();
+    for (const level of AWARD_LEVELS) {
+      const requirement = requirements[level];
+      if (requirement && "min_percent" in requirement) {
+        levelsByMinimum.set(requirement.min_percent, [...(levelsByMinimum.get(requirement.min_percent) ?? []), level]);
+      }
+    }
+    const minimums = [...levelsByMinimum.keys()].sort((a, b) => a - b);
+    return minimums.map((minimum, index) => {
+      const levels = levelsByMinimum.get(minimum) ?? [];
       return {
-        from: operator === "lt" ? 0 : value,
-        to: operator === "lt" ? value : nextThreshold,
-        label: `${tierName} (${thresholdLabel})`,
-        color: tierColors[tier.toLowerCase()] ?? "var(--foreground)",
+        from: minimum,
+        to: minimums[index + 1],
+        label: `${levels.map(levelName).join(" / ")} (≥ ${minimum}%)`,
+        color: AWARD_COLORS[levels[levels.length - 1]],
       };
     });
   });
+}
+
+/** Award levels that ask for a condition rather than a share; they have no zone on the value axis. */
+export function getAngelsAwardsConditions(requirementsByMetric?: AngelsAwardsRequirements): AngelsAwardsCondition[] {
+  return Object.values(requirementsByMetric ?? {}).flatMap((requirements) =>
+    AWARD_LEVELS.filter((level) => {
+      const requirement = requirements[level];
+      return requirement !== undefined && "required" in requirement;
+    }).map((level) => ({ label: `${levelName(level)} (required)`, color: AWARD_COLORS[level] })),
+  );
 }
 

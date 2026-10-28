@@ -38,13 +38,12 @@ export interface ChartAxis {
   unit?: string;
 }
 
-export type AngelsAwardsThreshold =
-  | number
-  | { lt: number }
-  | { gt: number };
-export type AngelsAwardsThresholds = Record<
+export type AngelsAwardsLevel = "gold" | "platinum" | "diamond";
+/** What an award level asks of a metric: a minimum share of cases, or a condition that must hold. */
+export type AngelsAwardsRequirement = { min_percent: number } | { required: true };
+export type AngelsAwardsRequirements = Record<
   string,
-  Record<string, AngelsAwardsThreshold>
+  Partial<Record<AngelsAwardsLevel, AngelsAwardsRequirement>>
 >;
 
 export interface ChartMetadata {
@@ -55,5 +54,5 @@ export interface ChartMetadata {
   legend?: boolean;
   width?: number;
   height?: number;
-  angels_awards?: AngelsAwardsThresholds;
+  angels_awards?: AngelsAwardsRequirements;
 }

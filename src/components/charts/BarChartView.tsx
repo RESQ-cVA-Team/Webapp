@@ -11,6 +11,7 @@ import {
 } from "recharts";
 import type { BarChartDTO } from "@/models/dto/charts";
 import {
+  getAngelsAwardsConditions,
   getAngelsAwardsZones,
   getDynamicCategoryTickLayout,
   getSeriesColor,
@@ -78,6 +79,7 @@ export function BarChartView({ chart }: Props) {
     (chart.orientation ?? "vertical") === "horizontal" ? "vertical" : "horizontal";
 
   const awardZones = getAngelsAwardsZones(chart.metadata.angels_awards);
+  const awardConditions = getAngelsAwardsConditions(chart.metadata.angels_awards);
   return (
     <div className="h-full w-full flex flex-col flex-1">
       <h3 className="text-lg font-semibold mb-2 text-primary">{chart.metadata.title}</h3>
@@ -134,7 +136,7 @@ export function BarChartView({ chart }: Props) {
               animationEasing="spring" 
               contentStyle={{ backgroundColor: "var(--card)", borderRadius: "var(--radius)",  minWidth: "100px", fontSize: "0.75rem", fontWeight: "bold" }}
             />
-            <Legend content={<ChartLegend zones={awardZones} />} />
+            <Legend content={<ChartLegend zones={awardZones} conditions={awardConditions} />} />
             {awardZones.length > 0 && (
               <ChartAwardZones
                 zones={awardZones}

@@ -11,6 +11,7 @@ import {
 } from "recharts";
 import type { LineChartDTO } from "@/models/dto/charts";
 import {
+  getAngelsAwardsConditions,
   getAngelsAwardsZones,
   getDynamicCategoryTickLayout,
   getSeriesColor,
@@ -63,6 +64,7 @@ export function LineChartView({ chart }: Props) {
     labelHeightSmall: 50,
   });
   const awardZones = getAngelsAwardsZones(chart.metadata.angels_awards);
+  const awardConditions = getAngelsAwardsConditions(chart.metadata.angels_awards);
 
   return (
     <div className="h-full w-full flex flex-col flex-1">
@@ -102,7 +104,7 @@ export function LineChartView({ chart }: Props) {
                 dx: -20,
               }}
             />
-            <Legend content={<ChartLegend zones={awardZones} />} />
+            <Legend content={<ChartLegend zones={awardZones} conditions={awardConditions} />} />
             {awardZones.length > 0 && <ChartAwardZones zones={awardZones} />}
            <Tooltip 
               animationEasing="spring"

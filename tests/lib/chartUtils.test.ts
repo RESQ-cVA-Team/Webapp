@@ -1,43 +1,56 @@
 import { describe, expect, it } from "vitest";
-import { getAngelsAwardsZones } from "@/lib/chart-utils";
+import { getAngelsAwardsConditions, getAngelsAwardsZones } from "@/lib/chart-utils";
 
 describe("getAngelsAwardsZones", () => {
-  it("converts thresholds to adjacent tier zones and omits duplicate Platinum", () => {
+  it("draws one zone per minimum share, up to the next one", () => {
     expect(
       getAngelsAwardsZones({
-        AA_DTN_LE60: { gold: 50, platinum: 75, diamond: 75 },
+        AA_RECANALIZATION: { gold: { min_percent: 5 }, platinum: { min_percent: 15 }, diamond: { min_percent: 25 } },
       }),
     ).toEqual([
-      { from: 50, to: 75, label: "Gold (≥ 50)", color: "var(--aa-gold)" },
-      { from: 75, to: undefined, label: "Diamond (≥ 75)", color: "var(--aa-diamond)" },
+      { from: 5, to: 15, label: "Gold (≥ 5%)", color: "var(--aa-gold)" },
+      { from: 15, to: 25, label: "Platinum (≥ 15%)", color: "var(--aa-platinum)" },
+      { from: 25, to: undefined, label: "Diamond (≥ 25%)", color: "var(--aa-diamond)" },
     ]);
   });
 
-  it("keeps Platinum when its threshold differs from Diamond", () => {
+  it("gives levels with the same minimum one zone that names both", () => {
     expect(
       getAngelsAwardsZones({
-        AA_DTN_LE60: { platinum: 70, diamond: 75 },
+        AA_DTN_LE60: { gold: { min_percent: 50 }, platinum: { min_percent: 75 }, diamond: { min_percent: 75 } },
       }),
     ).toEqual([
-      { from: 70, to: 75, label: "Platinum (≥ 70)", color: "var(--aa-platinum)" },
-      { from: 75, to: undefined, label: "Diamond (≥ 75)", color: "var(--aa-diamond)" },
+      { from: 50, to: 75, label: "Gold (≥ 50%)", color: "var(--aa-gold)" },
+      { from: 75, to: undefined, label: "Platinum / Diamond (≥ 75%)", color: "var(--aa-diamond)" },
     ]);
   });
 
-  it("supports less-than and greater-than thresholds", () => {
-    expect(
-      getAngelsAwardsZones({
-        AA_DTN_LE45: { platinum: { lt: 50 }, diamond: 50 },
-        AA_STROKE_UNIT: { diamond: { gt: 0 } },
-      }),
-    ).toEqual([
-      { from: 0, to: 50, label: "Platinum (< 50)", color: "var(--aa-platinum)" },
-      { from: 50, to: undefined, label: "Diamond (≥ 50)", color: "var(--aa-diamond)" },
-      { from: 0, to: undefined, label: "Diamond (YES)", color: "var(--aa-diamond)" },
+  it("draws only the levels that have a requirement", () => {
+    expect(getAngelsAwardsZones({ AA_DTN_LE45: { diamond: { min_percent: 50 } } })).toEqual([
+      { from: 50, to: undefined, label: "Diamond (≥ 50%)", color: "var(--aa-diamond)" },
     ]);
+  });
+
+  it("draws no zone for a required condition", () => {
+    expect(getAngelsAwardsZones({ AA_STROKE_UNIT: { diamond: { required: true } } })).toEqual([]);
   });
 
   it("returns no zones when Angels Awards metadata is absent", () => {
     expect(getAngelsAwardsZones()).toEqual([]);
+  });
+});
+
+describe("getAngelsAwardsConditions", () => {
+  it("lists the levels that require a condition", () => {
+    expect(
+      getAngelsAwardsConditions({
+        AA_STROKE_UNIT: { diamond: { required: true } },
+        AA_DTN_LE45: { diamond: { min_percent: 50 } },
+      }),
+    ).toEqual([{ label: "Diamond (required)", color: "var(--aa-diamond)" }]);
+  });
+
+  it("returns nothing when Angels Awards metadata is absent", () => {
+    expect(getAngelsAwardsConditions()).toEqual([]);
   });
 });
