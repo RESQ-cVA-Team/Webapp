@@ -266,7 +266,7 @@ export default function InteractionLogAdminView({
                   onChange={(e) => setSettings({ ...settings, retentionDays: Number(e.target.value) })}
                 />
                 <p className="text-muted-foreground text-xs">
-                  Retention resets from each conversation's most recent activity, so an active conversation never expires mid-use.
+                  Retention resets from each conversation&apos;s most recent activity, so an active conversation never expires mid-use.
                 </p>
               </div>
               <div className="flex items-center gap-2 pt-6">
