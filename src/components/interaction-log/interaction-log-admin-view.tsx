@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Loader2, RefreshCcw } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -76,53 +76,63 @@ export default function InteractionLogAdminView({
 
   const [entries, setEntries] = useState<InteractionLogEntry[]>([]);
   const [total, setTotal] = useState(0);
-  const [entriesLoading, setEntriesLoading] = useState(false);
   const [entriesError, setEntriesError] = useState<string | null>(null);
   const [userEmailFilter, setUserEmailFilter] = useState("");
   const [selectedEntry, setSelectedEntry] = useState<InteractionLogEntry | null>(null);
 
-  const loadSettings = useCallback(async () => {
-    setSettingsLoading(true);
-    setSettingsError(null);
-    try {
-      const response = await fetch("/api/admin/interaction-log/settings", { cache: "no-store" });
-      if (!response.ok) throw new Error(`Failed to load settings (${response.status})`);
-      const data = (await response.json()) as InteractionLogSettings;
-      setSettings(data);
-      setAllowlistText(emailsToText(data.allowlistEmails));
-      setDenylistText(emailsToText(data.denylistEmails));
-    } catch (error) {
-      setSettingsError(error instanceof Error ? error.message : "Failed to load settings");
-    } finally {
-      setSettingsLoading(false);
+  useEffect(() => {
+    let cancelled = false;
+    async function loadSettings() {
+      try {
+        const response = await fetch("/api/admin/interaction-log/settings", { cache: "no-store" });
+        if (!response.ok) throw new Error(`Failed to load settings (${response.status})`);
+        const data = (await response.json()) as InteractionLogSettings;
+        if (cancelled) return;
+        setSettings(data);
+        setAllowlistText(emailsToText(data.allowlistEmails));
+        setDenylistText(emailsToText(data.denylistEmails));
+      } catch (error) {
+        if (!cancelled) setSettingsError(error instanceof Error ? error.message : "Failed to load settings");
+      } finally {
+        if (!cancelled) setSettingsLoading(false);
+      }
     }
+    void loadSettings();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const loadEntries = useCallback(async () => {
-    setEntriesLoading(true);
-    setEntriesError(null);
-    try {
-      const params = new URLSearchParams();
-      if (userEmailFilter.trim()) params.set("userEmail", userEmailFilter.trim());
-      const response = await fetch(`/api/admin/interaction-log?${params.toString()}`, { cache: "no-store" });
-      if (!response.ok) throw new Error(`Failed to load entries (${response.status})`);
-      const data = (await response.json()) as { total: number; results: InteractionLogEntry[] };
-      setEntries(data.results);
-      setTotal(data.total);
-    } catch (error) {
-      setEntriesError(error instanceof Error ? error.message : "Failed to load entries");
-    } finally {
-      setEntriesLoading(false);
+  // Bumped by the refresh button to load the same filter again.
+  const [entriesRefreshCount, setEntriesRefreshCount] = useState(0);
+  const entriesRequestKey = JSON.stringify([userEmailFilter.trim(), entriesRefreshCount]);
+  const [entriesLoadedKey, setEntriesLoadedKey] = useState<string | null>(null);
+  const entriesLoading = entriesLoadedKey !== entriesRequestKey;
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadEntries() {
+      try {
+        const params = new URLSearchParams();
+        if (userEmailFilter.trim()) params.set("userEmail", userEmailFilter.trim());
+        const response = await fetch(`/api/admin/interaction-log?${params.toString()}`, { cache: "no-store" });
+        if (!response.ok) throw new Error(`Failed to load entries (${response.status})`);
+        const data = (await response.json()) as { total: number; results: InteractionLogEntry[] };
+        if (cancelled) return;
+        setEntriesError(null);
+        setEntries(data.results);
+        setTotal(data.total);
+      } catch (error) {
+        if (!cancelled) setEntriesError(error instanceof Error ? error.message : "Failed to load entries");
+      } finally {
+        if (!cancelled) setEntriesLoadedKey(entriesRequestKey);
+      }
     }
-  }, [userEmailFilter]);
-
-  useEffect(() => {
-    void loadSettings();
-  }, [loadSettings]);
-
-  useEffect(() => {
     void loadEntries();
-  }, [loadEntries]);
+    return () => {
+      cancelled = true;
+    };
+  }, [entriesRequestKey, userEmailFilter]);
 
   async function handleSaveSettings() {
     if (!settings) return;
@@ -298,7 +308,7 @@ export default function InteractionLogAdminView({
       <section className="space-y-4 rounded-lg border p-4">
         <div className="flex items-center justify-between">
           <h2 className="font-medium">Captured conversations ({total})</h2>
-          <Button variant="outline" size="sm" onClick={() => void loadEntries()} disabled={entriesLoading}>
+          <Button variant="outline" size="sm" onClick={() => setEntriesRefreshCount((count) => count + 1)} disabled={entriesLoading}>
             {entriesLoading ? <Loader2 className="size-4 animate-spin" /> : <RefreshCcw className="size-4" />}
             Refresh
           </Button>
@@ -340,7 +350,7 @@ export default function InteractionLogAdminView({
                 <TableCell>{entry.threadId ?? "-"}</TableCell>
               </TableRow>
             ))}
-            {entries.length === 0 && !entriesLoading && (
+            {entriesLoadedKey !== null && entries.length === 0 && (
               <TableRow>
                 <TableCell colSpan={4} className="text-muted-foreground text-center">
                   No captured conversations yet.
