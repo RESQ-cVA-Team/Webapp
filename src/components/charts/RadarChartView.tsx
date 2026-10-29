@@ -8,7 +8,6 @@ import {
   PolarRadiusAxis,
   Tooltip,
   Legend,
-  ResponsiveContainer,
 } from "recharts";
 import type { RadarChartDTO } from "@/models/dto/charts";
 import { getSeriesColor } from "@/lib/chart-utils";

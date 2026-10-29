@@ -8,7 +8,6 @@ import {
   Tooltip,
   Legend,
   CartesianGrid,
-  ResponsiveContainer,
 } from "recharts";
 import type { WaterfallChartDTO } from "@/models/dto/charts";
 

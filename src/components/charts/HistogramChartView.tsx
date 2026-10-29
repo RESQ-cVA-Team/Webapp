@@ -8,7 +8,6 @@ import {
   Tooltip,
   Legend,
   CartesianGrid,
-  ResponsiveContainer,
 } from "recharts";
 import type { HistogramChartDTO } from "@/models/dto/charts";
 import { getDynamicCategoryTickLayout } from "@/lib/chart-utils";

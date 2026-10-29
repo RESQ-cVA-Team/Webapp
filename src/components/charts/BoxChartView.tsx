@@ -8,7 +8,6 @@ import {
   Tooltip,
   Legend,
   CartesianGrid,
-  ResponsiveContainer,
   ErrorBar,
 } from "recharts";
 import type { BoxChartDTO } from "@/models/dto/charts";
