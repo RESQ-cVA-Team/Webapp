@@ -10,27 +10,14 @@ import {
   CartesianGrid,
 } from "recharts";
 import type { WaterfallChartDTO } from "@/models/dto/charts";
+import { getWaterfallBars } from "@/lib/chart-utils";
 
 interface Props {
   chart: WaterfallChartDTO;
 }
 
 export function WaterfallChartView({ chart }: Props) {
-  let runningTotal = chart.start_value ?? 0;
-
-  const data = chart.data.map((step) => {
-    const start = runningTotal;
-    const end = step.is_total ? step.value : runningTotal + step.value;
-    runningTotal = end;
-
-    return {
-      label: step.label,
-      start,
-      end,
-      value: end - start,
-      isTotal: step.is_total ?? false,
-    };
-  });
+  const data = getWaterfallBars(chart);
 
   return (
     <div className="h-full w-full flex flex-col flex-1">
