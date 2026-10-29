@@ -315,7 +315,7 @@ export default function InteractionLogAdminView({
         </div>
 
         <Input
-          placeholder="Filter by user email"
+          placeholder="Filter by part of a user email"
           value={userEmailFilter}
           onChange={(e) => setUserEmailFilter(e.target.value)}
         />
