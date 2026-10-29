@@ -30,5 +30,8 @@ jobs:
           corepack enable
           pnpm install --frozen-lockfile
 
+      - name: Lint
+        run: pnpm lint
+
       - name: Run the test suite
         run: pnpm vitest run

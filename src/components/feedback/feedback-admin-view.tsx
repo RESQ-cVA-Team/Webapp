@@ -200,7 +200,6 @@ export default function FeedbackAdminView({
   const [ratingFilter, setRatingFilter] = useState<string>("all");
   const [issueFilter, setIssueFilter] = useState<string>("all");
   const [query, setQuery] = useState("");
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [records, setRecords] = useState<FeedbackRecord[]>([]);
   const [total, setTotal] = useState(0);
@@ -215,10 +214,14 @@ export default function FeedbackAdminView({
 
   const threadGroups = useMemo(() => buildThreadGroups(records), [records]);
 
-  const loadFeedback = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  // Bumped by the refresh button to load the same filters again.
+  const [refreshCount, setRefreshCount] = useState(0);
+  const requestKey = JSON.stringify([ratingFilter, issueFilter, query.trim(), refreshCount]);
+  const [loadedKey, setLoadedKey] = useState<string | null>(null);
+  const loading = loadedKey !== requestKey;
 
+  useEffect(() => {
+    let cancelled = false;
     const params = new URLSearchParams();
     if (ratingFilter !== "all") {
       params.set("rating", ratingFilter);
@@ -230,47 +233,54 @@ export default function FeedbackAdminView({
       params.set("query", query.trim());
     }
 
-    try {
-      const response = await fetch(`/api/admin/feedback?${params.toString()}`, {
-        cache: "no-store",
-      });
+    async function loadFeedback() {
+      try {
+        const response = await fetch(`/api/admin/feedback?${params.toString()}`, {
+          cache: "no-store",
+        });
 
-      const payload = (await response.json().catch(() => null)) as AdminResponse | { message?: string } | null;
+        const payload = (await response.json().catch(() => null)) as AdminResponse | { message?: string } | null;
 
-      if (!response.ok) {
-        throw new Error(
-          payload && "message" in payload && payload.message
-            ? payload.message
-            : `Failed to load feedback (${response.status})`
-        );
+        if (!response.ok) {
+          throw new Error(
+            payload && "message" in payload && payload.message
+              ? payload.message
+              : `Failed to load feedback (${response.status})`
+          );
+        }
+
+        if (cancelled) return;
+        const data = payload as AdminResponse;
+        setError(null);
+        setRecords(data.results);
+        setTotal(data.total);
+        setSelectedRecord((current) => data.results.find((item) => item.id === current?.id) ?? null);
+      } catch (loadError) {
+        if (cancelled) return;
+        console.error(loadError);
+        setError(loadError instanceof Error ? loadError.message : "Failed to load feedback");
+        setRecords([]);
+        setTotal(0);
+      } finally {
+        if (!cancelled) {
+          setLoadedKey(requestKey);
+        }
       }
-
-      const data = payload as AdminResponse;
-      setRecords(data.results);
-      setTotal(data.total);
-      setSelectedRecord((current) => data.results.find((item) => item.id === current?.id) ?? null);
-    } catch (loadError) {
-      console.error(loadError);
-      setError(loadError instanceof Error ? loadError.message : "Failed to load feedback");
-      setRecords([]);
-      setTotal(0);
-    } finally {
-      setLoading(false);
     }
-  }, [issueFilter, query, ratingFilter]);
 
-  useEffect(() => {
     void loadFeedback();
-  }, [loadFeedback]);
+    return () => {
+      cancelled = true;
+    };
+  }, [issueFilter, query, ratingFilter, requestKey]);
 
-  useEffect(() => {
-    if (!selectedRecord || typeof window === "undefined") {
-      return;
+  function openRecord(record: FeedbackRecord) {
+    if (typeof window !== "undefined") {
+      const nextWidth = Math.min(960, window.innerWidth - DETAIL_MAX_WIDTH_PADDING);
+      setDetailWidth(Math.max(DETAIL_MIN_WIDTH, nextWidth));
     }
-
-    const nextWidth = Math.min(960, window.innerWidth - DETAIL_MAX_WIDTH_PADDING);
-    setDetailWidth(Math.max(DETAIL_MIN_WIDTH, nextWidth));
-  }, [selectedRecord]);
+    setSelectedRecord(record);
+  }
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -376,7 +386,7 @@ export default function FeedbackAdminView({
           </Select>
         </div>
 
-        <Button type="button" variant="outline" onClick={() => void loadFeedback()} disabled={loading}>
+        <Button type="button" variant="outline" onClick={() => setRefreshCount((count) => count + 1)} disabled={loading}>
           {loading ? <Loader2 className="size-4 animate-spin" /> : <RefreshCcw className="size-4" />}
           Refresh
         </Button>
@@ -441,7 +451,7 @@ export default function FeedbackAdminView({
                     <TableRow
                       key={record.id}
                       className="cursor-pointer"
-                      onClick={() => setSelectedRecord(record)}
+                      onClick={() => openRecord(record)}
                     >
                       <TableCell>{formatTimestamp(record.createdAt)}</TableCell>
                       <TableCell>
@@ -468,7 +478,7 @@ export default function FeedbackAdminView({
         </div>
       ) : null}
 
-      {!loading && records.length === 0 ? (
+      {loadedKey !== null && records.length === 0 ? (
         <div className="rounded-lg border py-10 text-center text-muted-foreground">
           No feedback records match the current filters.
         </div>
