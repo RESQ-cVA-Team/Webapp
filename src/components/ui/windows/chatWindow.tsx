@@ -185,9 +185,18 @@ export default function ChatWindow() {
   const { currentThreadId, threadsResolved } = useThread();
   const [messages, setMessages] = useState<Message[]>([]);
   const [autocompleteItems, setAutocompleteItems] = useState<string[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(Boolean(currentThreadId));
   const [pendingRequests, setPendingRequests] = useState(0);
   const [activeLongActionJobCount, setActiveLongActionJobCount] = useState(0);
+  // Switching threads starts from an empty chat that loads the new thread's history.
+  const [shownThreadId, setShownThreadId] = useState(currentThreadId);
+  if (currentThreadId !== shownThreadId) {
+    setShownThreadId(currentThreadId);
+    setMessages([]);
+    setLoading(Boolean(currentThreadId));
+    setPendingRequests(0);
+    setActiveLongActionJobCount(0);
+  }
   const activeLongActionJobsRef = useRef<Set<string>>(new Set());
   const activeLongActionLockTimersRef = useRef<Map<string, number>>(new Map());
   const seenCommittedEventIndexesRef = useRef<Set<number>>(new Set());
@@ -380,22 +389,15 @@ export default function ChatWindow() {
       window.clearTimeout(timerId);
     }
     activeLongActionLockTimersRef.current.clear();
-    setActiveLongActionJobCount(0);
-    setPendingRequests(0);
-
-    let cancelled = false;
 
     if (!currentThreadId) {
-      setMessages([]);
-      setLoading(false);
       return;
     }
 
+    let cancelled = false;
     const threadId = currentThreadId;
-    setMessages([]);
 
     async function fetchMessages() {
-      setLoading(true);
       try {
         const { mapped, customPayloads, error, status } = await fetchThreadHistory(threadId);
 
