@@ -19,11 +19,14 @@ export default async function InteractionLogAdminPage() {
 
   const storage = getInteractionLogEntryStorageInfo();
 
+  // The root layout hides overflow, so the page scrolls its own content.
   return (
-    <InteractionLogAdminView
-      storageMode={storage.kind}
-      storageDescription={storage.description}
-      storageWarning={storage.warning}
-    />
+    <div className="h-full overflow-y-auto">
+      <InteractionLogAdminView
+        storageMode={storage.kind}
+        storageDescription={storage.description}
+        storageWarning={storage.warning}
+      />
+    </div>
   );
 }
