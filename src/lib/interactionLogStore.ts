@@ -287,7 +287,7 @@ async function listLocalEntries(filters: ListFilters): Promise<{ total: number; 
   const take = Math.min(Math.max(filters.limit ?? 25, 1), 100);
   const store = await readLocalStore();
   const filtered = store.entries
-    .filter((entry) => (filters.userEmail ? entry.userEmail === filters.userEmail.toLowerCase() : true))
+    .filter((entry) => (filters.userEmail ? (entry.userEmail ?? "").toLowerCase().includes(filters.userEmail.toLowerCase()) : true))
     .filter((entry) => (filters.source ? entry.source === filters.source : true))
     .sort((left, right) => new Date(right.capturedAt).getTime() - new Date(left.capturedAt).getTime());
 
@@ -450,7 +450,8 @@ async function listPostgresEntries(filters: ListFilters): Promise<{ total: numbe
 
   if (filters.userEmail) {
     params.push(filters.userEmail.toLowerCase());
-    clauses.push(`user_email = $${params.length}`);
+    // strpos, unlike LIKE, treats % and _ in the filter as plain characters.
+    clauses.push(`strpos(lower(user_email), $${params.length}) > 0`);
   }
   if (filters.source) {
     params.push(filters.source);
