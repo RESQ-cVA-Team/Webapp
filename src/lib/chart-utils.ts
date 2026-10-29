@@ -1,4 +1,5 @@
 import type { AngelsAwardsLevel, AngelsAwardsRequirements, ChartSeries } from "@/models/dto/types";
+import type { WaterfallChartDTO } from "@/models/dto/charts";
 
 export type ChartPointValue = number | string | null;
 
@@ -153,3 +154,19 @@ export function getAngelsAwardsConditions(requirementsByMetric?: AngelsAwardsReq
   );
 }
 
+export interface WaterfallBar {
+  label: string;
+  start: number;
+  end: number;
+  value: number;
+  isTotal: boolean;
+}
+
+/** Floating bars of a waterfall: each step starts where the previous one ended; a total step ends at its own value. */
+export function getWaterfallBars(chart: WaterfallChartDTO): WaterfallBar[] {
+  return chart.data.reduce<WaterfallBar[]>((bars, step) => {
+    const start = bars.length > 0 ? bars[bars.length - 1].end : chart.start_value ?? 0;
+    const end = step.is_total ? step.value : start + step.value;
+    return [...bars, { label: step.label, start, end, value: end - start, isTotal: step.is_total ?? false }];
+  }, []);
+}
