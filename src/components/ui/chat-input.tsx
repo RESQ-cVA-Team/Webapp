@@ -144,18 +144,20 @@ export function ChatInput({
     }
   }, [computedPlaceholder, isBusy, message])
 
-  React.useEffect(() => {
+  // New suggestions start at the first one; disabling the input clears it.
+  const [shownSuggestions, setShownSuggestions] = React.useState(suggestions)
+  if (suggestions !== shownSuggestions) {
+    setShownSuggestions(suggestions)
     setSelectedSuggestionIndex(0)
-  }, [suggestions])
-
-  React.useEffect(() => {
-    if (!disabled) {
-      return
+  }
+  const [wasDisabled, setWasDisabled] = React.useState(false)
+  if (disabled !== wasDisabled) {
+    setWasDisabled(disabled)
+    if (disabled) {
+      setMessage("")
+      setAreSuggestionsHidden(false)
     }
-
-    setMessage("")
-    setAreSuggestionsHidden(false)
-  }, [disabled])
+  }
 
   const applySuggestion = React.useCallback((suggestion: string, matchedTarget?: string) => {
     setAreSuggestionsHidden(false)

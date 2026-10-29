@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { SquarePen, Search, X, Pencil } from "lucide-react";
 import { ArrowLeftToLine, PanelLeftIcon } from "lucide-react"
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
@@ -48,7 +48,6 @@ export function SideMenu() {
   const [loading, setLoading] = useState(true);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<Thread[]>([]);
   const [selectedSearchIndex, setSelectedSearchIndex] = useState(0);
   const searchResultRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
@@ -59,11 +58,16 @@ export function SideMenu() {
     currentThreadIdRef.current = currentThreadId;
   }, [currentThreadId]);
 
-  const selectThread = useCallback((threadId: number) => {
-    setCurrentThreadId(threadId);
+  const closeSearch = useCallback(() => {
     setSearchOpen(false);
     setSearchQuery("");
-  }, [setCurrentThreadId]);
+    setSelectedSearchIndex(0);
+  }, []);
+
+  const selectThread = useCallback((threadId: number) => {
+    setCurrentThreadId(threadId);
+    closeSearch();
+  }, [closeSearch, setCurrentThreadId]);
   const bootstrapThread = useCallback(async (threadId: number) => {
     try {
       const res = await fetch('/api/rasa', {
@@ -224,64 +228,47 @@ export function SideMenu() {
     };
   }, []);
 
-  useEffect(() => {
-    if (!searchOpen) {
-      setSearchQuery("");
-      setSelectedSearchIndex(0);
-    }
-  }, [searchOpen]);
-
-  useEffect(() => {
+  const searchResults = useMemo(() => {
     const query = searchQuery.trim();
-
     if (!query) {
-      setSearchResults(threads);
-      return;
+      return threads;
     }
-
     const fuse = new Fuse(threads, {
       keys: ["name"],
       threshold: 0.35,
       ignoreLocation: true,
       minMatchCharLength: 1,
     });
-
-    setSearchResults(fuse.search(query).map(({ item }) => item));
+    return fuse.search(query).map(({ item }) => item);
   }, [searchQuery, threads]);
 
-  useEffect(() => {
-    if (searchResults.length === 0) {
-      setSelectedSearchIndex(0);
-      return;
-    }
-
-    setSelectedSearchIndex((current) => Math.min(current, searchResults.length - 1));
-  }, [searchResults]);
+  // Fewer results than before keep the selection on the last one.
+  const activeSearchIndex = Math.min(selectedSearchIndex, Math.max(searchResults.length - 1, 0));
 
   useEffect(() => {
-    searchResultRefs.current[selectedSearchIndex]?.scrollIntoView({ block: "nearest" });
-  }, [selectedSearchIndex]);
+    searchResultRefs.current[activeSearchIndex]?.scrollIntoView({ block: "nearest" });
+  }, [activeSearchIndex]);
 
   const handleSearchKeyDown = useCallback((event: React.KeyboardEvent<HTMLInputElement>) => {
     if (searchResults.length === 0) return;
 
     if (event.key === "ArrowDown") {
       event.preventDefault();
-      setSelectedSearchIndex((current) => (current + 1) % searchResults.length);
+      setSelectedSearchIndex((activeSearchIndex + 1) % searchResults.length);
       return;
     }
 
     if (event.key === "ArrowUp") {
       event.preventDefault();
-      setSelectedSearchIndex((current) => (current - 1 + searchResults.length) % searchResults.length);
+      setSelectedSearchIndex((activeSearchIndex - 1 + searchResults.length) % searchResults.length);
       return;
     }
 
     if (event.key === "Enter") {
       event.preventDefault();
-      selectThread(searchResults[selectedSearchIndex]?.id ?? searchResults[0].id);
+      selectThread(searchResults[activeSearchIndex]?.id ?? searchResults[0].id);
     }
-  }, [searchResults, selectThread, selectedSearchIndex]);
+  }, [searchResults, selectThread, activeSearchIndex]);
   
   return (
     //Collaps/Expand Button
@@ -351,7 +338,7 @@ export function SideMenu() {
             </DialogContent>
           </Dialog>
 
-          <Dialog open={searchOpen} onOpenChange={setSearchOpen}>
+          <Dialog open={searchOpen} onOpenChange={(open) => (open ? setSearchOpen(true) : closeSearch())}>
             <DialogTrigger asChild>
               {/* Search Threads Button*/}
               <SidebarMenuButton
@@ -399,7 +386,7 @@ export function SideMenu() {
                       }}
                       onClick={() => selectThread(thread.id)}
                       onMouseEnter={() => setSelectedSearchIndex(index)}
-                      className={`w-full rounded px-3 py-2 text-left text-sm transition-colors hover:bg-sidebar-accent hover:text-white ${selectedSearchIndex === index ? "bg-sidebar-accent text-white" : ""}`}
+                      className={`w-full rounded px-3 py-2 text-left text-sm transition-colors hover:bg-sidebar-accent hover:text-white ${activeSearchIndex === index ? "bg-sidebar-accent text-white" : ""}`}
                     >
                       <span className="block truncate">{thread.name}</span>
                     </button>
