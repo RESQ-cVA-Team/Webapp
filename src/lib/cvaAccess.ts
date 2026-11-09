@@ -11,9 +11,8 @@ export const NO_ACCESS_PATH = "/auth/no-access";
 export const REQUIRED_CVA_ROLE = "cva";
 
 // Realm roles only: the top-level `roles` claim this realm's tokens carry and
-// the standard `realm_access.roles`. Deliberately narrower than
-// feedbackAccess's getAccessTokenRoles, which also merges groups and client
-// roles -- a group or client role named "cva" must not grant access.
+// the standard `realm_access.roles`. Groups and client roles are excluded so a
+// group or client role with the same name cannot grant access.
 function collectRealmRoles(payload: Record<string, unknown>): string[] {
   const roles: string[] = [];
 
@@ -35,10 +34,13 @@ function collectRealmRoles(payload: Record<string, unknown>): string[] {
   return roles;
 }
 
-export function hasRequiredCvaRole(accessToken: string | null | undefined): boolean {
+export function getAccessTokenRealmRoles(accessToken: string | null | undefined): string[] {
   const payload = decodeJwtPayload(accessToken);
-  if (!payload) return false;
-  return collectRealmRoles(payload).includes(REQUIRED_CVA_ROLE);
+  return payload ? collectRealmRoles(payload) : [];
+}
+
+export function hasRequiredCvaRole(accessToken: string | null | undefined): boolean {
+  return getAccessTokenRealmRoles(accessToken).includes(REQUIRED_CVA_ROLE);
 }
 
 /** False for no session and for a session whose user lacks the cVA role.

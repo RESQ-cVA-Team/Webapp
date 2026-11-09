@@ -47,6 +47,16 @@ describe("interactionLogAccess", () => {
     expect(isInteractionLogAdmin({ email: "someone-else@example.com", accessToken: null })).toBe(false);
   });
 
+  it.each([
+    ["a group", { groups: ["realm-admin"] }],
+    ["a client role", { resource_access: { account: { roles: ["realm-admin"] } } }],
+  ])("does not treat %s with an admin role's name as an admin", (_name, claims) => {
+    process.env.INTERACTION_LOG_ADMIN_EMAILS = "";
+    process.env.INTERACTION_LOG_ADMIN_ROLES = "realm-admin";
+
+    expect(isInteractionLogAdmin({ email: null, accessToken: buildJwt(claims) })).toBe(false);
+  });
+
   it("falls back to roles and token claims when email is missing", () => {
     process.env.INTERACTION_LOG_ADMIN_EMAILS = "";
     process.env.INTERACTION_LOG_ADMIN_ROLES = "realm-admin";
