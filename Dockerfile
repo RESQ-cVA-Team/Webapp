@@ -24,7 +24,8 @@ ARG WEBAPP_COMMIT_SHA=""
 ARG WEBAPP_IMAGE_TAG=""
 ARG WEBAPP_BUILD_DATE=""
 
-RUN mkdir -p /app/.data && chown -R node:node /app && chmod 700 /app/.data
+# Only .data is writable; the runtime user can read the code but not change it.
+RUN mkdir -p /app/.data && chown node:node /app/.data && chmod 700 /app/.data
 
 # The runtime entrypoint below is just `node server.js` -- npm/npx/corepack
 # (bundled into the node:22-alpine base image for the builder stage's own
@@ -34,10 +35,10 @@ RUN mkdir -p /app/.data && chown -R node:node /app && chmod 700 /app/.data
 RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
     /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
 
-COPY --from=builder --chown=node:node /app/.next/standalone ./
-COPY --from=builder --chown=node:node /app/.next/static ./.next/static
-COPY --from=builder --chown=node:node /app/public ./public
-COPY --from=builder --chown=node:node /app/src/shared/SSOT ./src/shared/SSOT
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/src/shared/SSOT ./src/shared/SSOT
 
 ENV WEBAPP_VERSION=${WEBAPP_VERSION}
 ENV WEBAPP_COMMIT_SHA=${WEBAPP_COMMIT_SHA}
