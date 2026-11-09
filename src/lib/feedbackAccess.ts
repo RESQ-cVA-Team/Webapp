@@ -1,6 +1,6 @@
 import { createHash } from "crypto";
 import type { Session } from "next-auth";
-import { CVA_ROLE_MISSING_ERROR } from "@/lib/cvaAccess";
+import { CVA_ROLE_MISSING_ERROR, getAccessTokenRealmRoles } from "@/lib/cvaAccess";
 import { decodeJwtPayload } from "@/lib/jwtClaims";
 import { getFeedbackAdminEmails, getFeedbackAdminRoles, isFeedbackAdminEnabled, isMessageFeedbackEnabled } from "@/lib/feedbackConfig";
 
@@ -8,62 +8,6 @@ import { getFeedbackAdminEmails, getFeedbackAdminRoles, isFeedbackAdminEnabled, 
 // first feedback submission.
 if ((isMessageFeedbackEnabled() || isFeedbackAdminEnabled()) && !process.env.FEEDBACK_REPORTER_SALT?.trim()) {
   throw new Error("Missing FEEDBACK_REPORTER_SALT environment variable");
-}
-
-function collectRolesFromPayload(payload: Record<string, unknown> | null): string[] {
-  if (!payload) return [];
-
-  const roleValues = new Set<string>();
-
-  const directRoles = payload.roles;
-  if (Array.isArray(directRoles)) {
-    for (const value of directRoles) {
-      if (typeof value === "string" && value.trim()) {
-        roleValues.add(value.trim().toLowerCase());
-      }
-    }
-  }
-
-  const groups = payload.groups;
-  if (Array.isArray(groups)) {
-    for (const value of groups) {
-      if (typeof value === "string" && value.trim()) {
-        roleValues.add(value.trim().toLowerCase());
-      }
-    }
-  }
-
-  const realmAccess = payload.realm_access;
-  if (realmAccess && typeof realmAccess === "object") {
-    const realmRoles = (realmAccess as { roles?: unknown }).roles;
-    if (Array.isArray(realmRoles)) {
-      for (const value of realmRoles) {
-        if (typeof value === "string" && value.trim()) {
-          roleValues.add(value.trim().toLowerCase());
-        }
-      }
-    }
-  }
-
-  const resourceAccess = payload.resource_access;
-  if (resourceAccess && typeof resourceAccess === "object") {
-    for (const resourceValue of Object.values(resourceAccess as Record<string, unknown>)) {
-      if (!resourceValue || typeof resourceValue !== "object") continue;
-      const resourceRoles = (resourceValue as { roles?: unknown }).roles;
-      if (!Array.isArray(resourceRoles)) continue;
-      for (const value of resourceRoles) {
-        if (typeof value === "string" && value.trim()) {
-          roleValues.add(value.trim().toLowerCase());
-        }
-      }
-    }
-  }
-
-  return [...roleValues];
-}
-
-export function getAccessTokenRoles(accessToken: string | null | undefined): string[] {
-  return collectRolesFromPayload(decodeJwtPayload(accessToken));
 }
 
 function getAccessTokenPayload(accessToken: string | null | undefined): Record<string, unknown> | null {
@@ -137,7 +81,7 @@ export function isFeedbackAdmin(params: {
     return false;
   }
 
-  const tokenRoles = getAccessTokenRoles(params.accessToken);
+  const tokenRoles = getAccessTokenRealmRoles(params.accessToken);
   return tokenRoles.some((role) => adminRoles.includes(role));
 }
 

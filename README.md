@@ -33,7 +33,7 @@ If interaction logging is enabled (separate, stricter feature -- admin-controlle
 full-turn chat capture for specific real users, see `INTERACTION_LOG_ENABLED`):
 
 - `INTERACTION_LOG_ENABLED=true`
-- `INTERACTION_LOG_ADMIN_EMAILS` and/or `INTERACTION_LOG_ADMIN_ROLES` (at least one required)
+- `INTERACTION_LOG_ADMIN_EMAILS` and/or `INTERACTION_LOG_ADMIN_ROLES` (Keycloak realm roles; at least one required)
 - `INTERACTION_LOG_PSEUDONYM_SALT` (required only if an admin ever enables pseudonymous storage)
 
 ## Development (Dev Container)
