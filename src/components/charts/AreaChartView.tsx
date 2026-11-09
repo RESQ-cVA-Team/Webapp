@@ -8,7 +8,6 @@ import {
   Tooltip,
   Legend,
   CartesianGrid,
-  ResponsiveContainer,
 } from "recharts";
 import type { AreaChartDTO } from "@/models/dto/charts";
 import { getSeriesColor } from "@/lib/chart-utils";

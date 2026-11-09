@@ -124,7 +124,7 @@ export default function TopBar() {
 		void load(true);
 		const intervalId = setInterval(() => {
 			void load(true);
-		}, 20000);
+		}, 60000);
 
 		return () => {
 			cancelled = true;

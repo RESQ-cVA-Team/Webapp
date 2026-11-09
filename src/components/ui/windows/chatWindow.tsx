@@ -182,12 +182,21 @@ const LONG_ACTION_LOCK_TTL_MS = 3 * 60 * 1000;
 
 
 export default function ChatWindow() {
-  const { currentThreadId } = useThread();
+  const { currentThreadId, threadsResolved } = useThread();
   const [messages, setMessages] = useState<Message[]>([]);
   const [autocompleteItems, setAutocompleteItems] = useState<string[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(Boolean(currentThreadId));
   const [pendingRequests, setPendingRequests] = useState(0);
   const [activeLongActionJobCount, setActiveLongActionJobCount] = useState(0);
+  // Switching threads starts from an empty chat that loads the new thread's history.
+  const [shownThreadId, setShownThreadId] = useState(currentThreadId);
+  if (currentThreadId !== shownThreadId) {
+    setShownThreadId(currentThreadId);
+    setMessages([]);
+    setLoading(Boolean(currentThreadId));
+    setPendingRequests(0);
+    setActiveLongActionJobCount(0);
+  }
   const activeLongActionJobsRef = useRef<Set<string>>(new Set());
   const activeLongActionLockTimersRef = useRef<Map<string, number>>(new Map());
   const seenCommittedEventIndexesRef = useRef<Set<number>>(new Set());
@@ -380,22 +389,15 @@ export default function ChatWindow() {
       window.clearTimeout(timerId);
     }
     activeLongActionLockTimersRef.current.clear();
-    setActiveLongActionJobCount(0);
-    setPendingRequests(0);
-
-    let cancelled = false;
 
     if (!currentThreadId) {
-      setMessages([]);
-      setLoading(false);
       return;
     }
 
+    let cancelled = false;
     const threadId = currentThreadId;
-    setMessages([]);
 
     async function fetchMessages() {
-      setLoading(true);
       try {
         const { mapped, customPayloads, error, status } = await fetchThreadHistory(threadId);
 
@@ -547,7 +549,7 @@ export default function ChatWindow() {
   return (
     <div className=" flex flex-col h-full">
       <div className="gap-0 bg-transparent relative min-h-0 flex-none"  >  
-        <div className="w-full h-15 rounded-t-xl z-10 flex items-center justify-between px-10 pr-4 bg-gradient-to-tl from-secondary to-primary">
+        <div className="w-full h-15 z-10 flex items-center justify-between px-10 pr-4 bg-gradient-to-tl from-secondary to-primary">
           <div className="flex h-full min-h-0 w-full items-center justify-between gap-2">
             <ThreadName />
             <InfoAlertWindow />
@@ -556,16 +558,15 @@ export default function ChatWindow() {
         <WaveAsset className=" absolute w-full max-h-15 min-h-10 fill-gradient-to-r from-primary to-accent align-self bg-transparent z-1 p-0 pointer-events-none" />
       </div>
       <div className=" p-4 flex-1 pt-0 flex flex-col h-full min-h-0 w-full">
-        {loading ? (
+        {loading || !threadsResolved ? (
           <div className="flex-1 flex flex-col gap-3 h-full w-full">
-            <div className="flex flex-col h-full gap-2 w-full">
-              <Skeleton className="h-6 max-w-[60%] mt-10 bg-muted" />
-              <Skeleton className="h-6 max-w-[70%] bg-muted" />
-              <Skeleton className="h-6 max-w-[70%] bg-muted" />
-              <Skeleton className="h-6 max-w-[50%] bg-muted" />
-              <Skeleton className="h-6 max-w-[60%] mt-10 bg-muted" />
-              <Skeleton className="h-6 max-w-[70%] bg-muted" />
-              <Skeleton className="h-6 max-w-[50%] bg-muted" />
+            <div className="flex flex-col h-full gap-2 w-full p-2 pt-0 pb-0">
+              <Skeleton className="h-9 shrink-0 max-w-[30%] mt-10 bg-muted" />
+              <Skeleton className="h-9 shrink-0 max-w-[70%] bg-muted" />
+              <Skeleton className="h-9 shrink-0 w-[70%] self-end bg-accent/70" />
+              <Skeleton className="h-9 shrink-0 max-w-[60%] bg-muted" />
+              <Skeleton className="h-9 shrink-0 max-w-[50%] bg-muted" />
+              <Skeleton className="h-9 shrink-0 w-[60%] self-end bg-accent/70" />
             </div>
           </div>
          ) : (

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
 import { keycloakIssuer } from "@/auth.config";
+import { getUserTokenEntry } from "@/lib/userTokenVault";
 
 // signOut() alone only clears this app's own NextAuth session -- it never
 // tells Keycloak to end its own SSO session, so signing back in silently
@@ -16,19 +17,15 @@ export async function GET(req: NextRequest) {
   }
 
   const token = await getToken({ req, secret });
-  const idToken = typeof token?.idToken === "string" ? token.idToken : null;
+  const sub = typeof token?.sub === "string" ? token.sub : null;
+  const idToken = (sub ? (await getUserTokenEntry(sub))?.idToken : null) ?? null;
 
-  // A user turned away at sign-in (no cVA role) never got an app session, so
-  // there is no id_token to hint with. The no-access page opts into the
-  // client_id form of RP-initiated logout for that case; Keycloak then asks
-  // the user to confirm instead of ending the session silently.
+  // Without an id_token (turned away at sign-in, or the vault entry expired)
+  // the client_id form still ends the session; Keycloak then asks the user to
+  // confirm instead of ending it silently.
   const clientId = process.env.KEYCLOAK_CLIENT_ID?.trim();
-  const allowClientIdHint = req.nextUrl.searchParams.get("allowClientIdHint") === "1";
 
-  if (!keycloakIssuer || (!idToken && !(allowClientIdHint && clientId))) {
-    // Without an id_token we can't build a valid RP-initiated logout
-    // request -- fall back to local-only sign-out rather than sending the
-    // browser to Keycloak with no way to identify which session to end.
+  if (!keycloakIssuer || (!idToken && !clientId)) {
     return NextResponse.json({ url: null }, { status: 200 });
   }
 

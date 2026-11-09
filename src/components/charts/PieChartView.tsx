@@ -6,7 +6,6 @@ import {
   Cell,
   Tooltip,
   Legend,
-  ResponsiveContainer,
 } from "recharts";
 import type { PieChartDTO } from "@/models/dto/charts";
 import { getSeriesColor } from "@/lib/chart-utils";

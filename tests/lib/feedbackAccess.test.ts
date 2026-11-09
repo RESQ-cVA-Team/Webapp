@@ -38,6 +38,16 @@ describe("feedbackAccess", () => {
     expect(isFeedbackAdmin({ email: "Admin@Example.com", accessToken: null })).toBe(true);
   });
 
+  it.each([
+    ["a group", { groups: ["realm-admin"] }],
+    ["a client role", { resource_access: { account: { roles: ["realm-admin"] } } }],
+  ])("does not treat %s with an admin role's name as an admin", (_name, claims) => {
+    process.env.FEEDBACK_ADMIN_EMAILS = "";
+    process.env.FEEDBACK_ADMIN_ROLES = "realm-admin";
+
+    expect(isFeedbackAdmin({ email: null, accessToken: buildJwt(claims) })).toBe(false);
+  });
+
   it("falls back to roles and token claims when email is missing", () => {
     process.env.FEEDBACK_ADMIN_EMAILS = "";
     process.env.FEEDBACK_ADMIN_ROLES = "realm-admin";

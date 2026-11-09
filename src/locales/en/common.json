@@ -1,6 +1,7 @@
 {
   "app.title": "Clinician Virtual Assistant",
   "history.title": "Chart History",
+  "history.empty": "No visualization available, query the assistant to get started.",
   "robot.intro": "Chat with me",
   "topbar.logout": "Logout",
   "topbar.theme": "Theme",

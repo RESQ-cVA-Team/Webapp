@@ -12,6 +12,7 @@ vi.mock("@/lib/rasaConfig", () => ({
 }));
 
 import { GET } from "@/app/api/runtime-health/route";
+import { resetUpstreamHealthCache } from "@/lib/upstreamHealth";
 
 const ORIGINAL_ENV = {
   NODE_ENV: process.env.NODE_ENV,
@@ -61,8 +62,9 @@ beforeEach(() => {
   authMock.mockReset();
   getRasaBotsMock.mockReset();
   getRasaBotsMock.mockReturnValue([{ lang: "en", url: "https://rasa-en.example.com" }]);
-  global.fetch = vi.fn(async () =>
-    new Response(JSON.stringify({ ok: true }), {
+  resetUpstreamHealthCache();
+  global.fetch = vi.fn(async (url: string) =>
+    new Response(JSON.stringify(String(url).endsWith("/health/live") ? { status: "UP", meta: { commit: "c92127b74076" } } : { ok: true }), {
       status: 200,
       headers: { "content-type": "application/json" },
     })
@@ -117,6 +119,28 @@ describe("GET /api/runtime-health", () => {
     expect(serviceKeys.some((key) => key === "rasa" || key.startsWith("rasa:"))).toBe(true);
     expect(body.config.some((item) => item.key === "rasa_url_list" && item.status === "ok")).toBe(true);
     expect(body.external.some((item) => item.key === "upstream_graphql" && item.status === "up")).toBe(true);
+  });
+
+  it("checks upstream services through their public liveness endpoints, once for all callers", async () => {
+    authMock.mockResolvedValue({
+      accessToken: "access-token",
+      isFeedbackAdmin: true,
+      user: { id: "user-1", email: "admin@example.com", name: "Admin User" },
+    });
+    const fetchMock = global.fetch as unknown as ReturnType<typeof vi.fn>;
+
+    await GET();
+    await GET();
+
+    const upstreamCalls = fetchMock.mock.calls.filter(([url]) => String(url).includes("graphql.example.com") || String(url).includes("analytics.example.com"));
+    expect(upstreamCalls.map(([url]) => String(url)).sort()).toEqual([
+      "https://analytics.example.com/api/rest/analytics-center/health/live",
+      "https://graphql.example.com/api/rest/aggregation/health/live",
+    ]);
+    for (const [, init] of upstreamCalls) {
+      expect((init as RequestInit).method).toBe("GET");
+      expect(JSON.stringify((init as RequestInit).headers ?? {})).not.toContain("Authorization");
+    }
   });
 
   it("reduces diagnostics for non-admin sessions", async () => {

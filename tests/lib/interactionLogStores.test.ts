@@ -137,7 +137,7 @@ describe("interactionLogStore (local-file backend)", () => {
     expect(results[0].traceId).toBe("trace-2");
   });
 
-  it("filters by user email and source", async () => {
+  it("filters by any part of the user email, and by source", async () => {
     const { upsertInteractionLogEntry, listInteractionLogEntries } = await import("@/lib/interactionLogStore");
 
     await upsertInteractionLogEntry({
@@ -172,6 +172,11 @@ describe("interactionLogStore (local-file backend)", () => {
     const byEmail = await listInteractionLogEntries({ userEmail: "user@example.com" });
     expect(byEmail.total).toBe(1);
     expect(byEmail.results[0].userEmail).toBe("user@example.com");
+
+    const byPartOfEmail = await listInteractionLogEntries({ userEmail: "USER@" });
+    expect(byPartOfEmail.total).toBe(1);
+    expect(byPartOfEmail.results[0].userEmail).toBe("user@example.com");
+    expect((await listInteractionLogEntries({ userEmail: "example.com" })).total).toBe(2);
 
     const bySource = await listInteractionLogEntries({ source: "long-task-callback" });
     expect(bySource.total).toBe(1);

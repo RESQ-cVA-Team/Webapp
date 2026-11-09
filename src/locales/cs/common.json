@@ -1,6 +1,7 @@
 {
   "app.title": "Klinický virtuální asistent",
   "history.title": "Historie grafů",
+  "history.empty": "Žádná vizualizace není k dispozici, zeptejte se asistenta a začněte.",
   "robot.intro": "Chatovat se mnou",
   "topbar.logout": "Odhlásit se",
   "topbar.theme": "Téma",

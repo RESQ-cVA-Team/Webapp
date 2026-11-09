@@ -1,7 +1,7 @@
 import { createHash } from "crypto";
 import type { Session } from "next-auth";
-import { CVA_ROLE_MISSING_ERROR } from "@/lib/cvaAccess";
-import { getAccessTokenEmail, getAccessTokenName, getAccessTokenRoles } from "@/lib/feedbackAccess";
+import { CVA_ROLE_MISSING_ERROR, getAccessTokenRealmRoles } from "@/lib/cvaAccess";
+import { getAccessTokenEmail, getAccessTokenName } from "@/lib/feedbackAccess";
 import { getInteractionLogAdminEmails, getInteractionLogAdminRoles } from "@/lib/interactionLogConfig";
 
 /** Deliberately separate from feedback's admin list -- this feature exposes
@@ -22,7 +22,7 @@ export function isInteractionLogAdmin(params: { email?: string | null; accessTok
     return false;
   }
 
-  const tokenRoles = getAccessTokenRoles(params.accessToken);
+  const tokenRoles = getAccessTokenRealmRoles(params.accessToken);
   return tokenRoles.some((role) => adminRoles.includes(role));
 }
 
