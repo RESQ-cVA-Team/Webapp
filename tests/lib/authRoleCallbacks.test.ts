@@ -59,6 +59,21 @@ describe("signIn callback", () => {
   });
 });
 
+describe("jwt callback at sign-in", () => {
+  it("vaults the id_token and leaves it out of the session cookie's token", async () => {
+    getUserAccessTokenMock.mockResolvedValue(WITH_ROLE);
+
+    const token = await callbacks.jwt({
+      token: { sub: "u1" },
+      account: { access_token: WITH_ROLE, refresh_token: "refresh", id_token: "the-id-token", expires_at: FAR_FUTURE / 1000 },
+      profile: { sub: "u1" },
+    });
+
+    expect(putUserTokensMock).toHaveBeenCalledWith(expect.objectContaining({ sub: "u1", idToken: "the-id-token" }));
+    expect(JSON.stringify(token)).not.toContain("the-id-token");
+  });
+});
+
 describe("jwt callback role tracking", () => {
   function tokenOutsideRefreshWindow() {
     return { sub: "u1", email: "u@example.com", accessTokenExpires: FAR_FUTURE };

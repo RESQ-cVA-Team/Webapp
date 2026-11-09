@@ -71,6 +71,24 @@ describe("userTokenVault (redis backend, encryption at rest)", () => {
     expect(stored[0]).not.toContain("super-secret-refresh-token");
   });
 
+  it("encrypts the id_token and keeps it when a refresh stores new tokens", async () => {
+    const { putUserTokens, getUserTokenEntry } = await freshModule();
+
+    await putUserTokens({
+      sub: "user-4",
+      accessToken: "access-1",
+      idToken: "super-secret-id-token",
+      accessTokenExpiresAt: Date.now() + 60_000,
+    });
+    expect([...fakeStore.values()][0]).not.toContain("super-secret-id-token");
+
+    await putUserTokens({ sub: "user-4", accessToken: "access-2", accessTokenExpiresAt: Date.now() + 60_000 });
+
+    const entry = await getUserTokenEntry("user-4");
+    expect(entry?.accessToken).toBe("access-2");
+    expect(entry?.idToken).toBe("super-secret-id-token");
+  });
+
   it("drops a corrupted or pre-encryption plaintext entry instead of trusting it", async () => {
     const { getUserAccessToken } = await freshModule();
 
