@@ -16,6 +16,7 @@ type RedisVaultClient = {
 type TokenEntry = {
   accessToken: string;
   refreshToken?: string | null;
+  idToken?: string | null;
   expiresAt: number;
   storedUntil: number;
   refreshedAt?: number;
@@ -214,6 +215,7 @@ export async function putUserTokens(params: {
   sub: string;
   accessToken: string;
   refreshToken?: string | null;
+  idToken?: string | null;
   accessTokenExpiresAt?: number;
   accessTokenRefreshedAt?: number;
 }): Promise<void> {
@@ -233,6 +235,7 @@ export async function putUserTokens(params: {
       params.refreshToken === undefined
         ? existingEntry?.refreshToken ?? null
         : params.refreshToken,
+    idToken: params.idToken === undefined ? existingEntry?.idToken ?? null : params.idToken,
     expiresAt,
     storedUntil: computeStoredUntil(expiresAt),
     refreshedAt:

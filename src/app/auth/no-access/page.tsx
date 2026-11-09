@@ -24,7 +24,7 @@ export default function NoAccessPage() {
     setSigningOut(true);
     let logoutUrl: string | null = null;
     try {
-      const res = await fetch("/api/auth/keycloak-logout-url?allowClientIdHint=1");
+      const res = await fetch("/api/auth/keycloak-logout-url");
       if (res.ok) {
         const data = await res.json();
         logoutUrl = typeof data?.url === "string" ? data.url : null;
