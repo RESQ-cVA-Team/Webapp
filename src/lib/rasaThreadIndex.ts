@@ -90,47 +90,19 @@ export async function createThreadInRasa(params: {
     return null;
   }
 
-  const nextIdRes = await fetch(`${apiUrl}/threads/by-user/${encodeURIComponent(params.userId)}/next-id`, {
-    headers: withUserBearerHeader(undefined, params.accessToken),
-    cache: "no-store",
-  });
-  if (!nextIdRes.ok) {
-    return null;
-  }
-
-  const nextIdPayload = (await nextIdRes.json()) as { next_thread_id?: unknown };
-  const nextId =
-    typeof nextIdPayload.next_thread_id === "number" && Number.isFinite(nextIdPayload.next_thread_id)
-      ? nextIdPayload.next_thread_id
-      : null;
-  if (!nextId || nextId <= 0) {
-    return null;
-  }
-
-  const trimmedName = typeof params.name === "string" ? params.name.trim() : "";
-  const threadName = trimmedName || `Conversation ${nextId}`;
-
-  const createRes = await fetch(`${apiUrl}/threads/${encodeURIComponent(params.userId)}/index-event`, {
+  // Rasa allocates the id and records the thread in one step, so concurrent
+  // creates cannot end up sharing an id.
+  const res = await fetch(`${apiUrl}/threads/by-user/${encodeURIComponent(params.userId)}`, {
     method: "POST",
     headers: withUserBearerHeader({ "Content-Type": "application/json" }, params.accessToken),
-    body: JSON.stringify({
-      thread_id: nextId,
-      action: "create",
-      name: threadName,
-    }),
+    body: JSON.stringify({ name: typeof params.name === "string" ? params.name.trim() : "" }),
   });
-
-  if (!createRes.ok) {
+  if (!res.ok) {
     return null;
   }
 
-  return {
-    id: nextId,
-    userId: params.userId,
-    name: threadName,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  };
+  const payload = (await res.json()) as { thread?: RasaThread };
+  return mapRasaThread(params.userId, payload.thread ?? {});
 }
 
 export async function renameThreadInRasa(params: {
@@ -146,35 +118,26 @@ export async function renameThreadInRasa(params: {
     return null;
   }
 
-  const existing = await getThreadFromRasa(params);
-  if (!existing) {
-    return null;
-  }
-
   const apiUrl = await resolveRasaUrl(params.headers, params.cookies);
   if (!apiUrl) {
     return null;
   }
 
-  const res = await fetch(`${apiUrl}/threads/${encodeURIComponent(params.userId)}/index-event`, {
-    method: "POST",
-    headers: withUserBearerHeader({ "Content-Type": "application/json" }, params.accessToken),
-    body: JSON.stringify({
-      thread_id: params.threadId,
-      action: "rename",
-      name: trimmedName,
-    }),
-  });
-
+  // Rasa answers 404 for a thread that does not exist or was deleted.
+  const res = await fetch(
+    `${apiUrl}/threads/${encodeURIComponent(params.userId)}/thread/${encodeURIComponent(String(params.threadId))}`,
+    {
+      method: "PATCH",
+      headers: withUserBearerHeader({ "Content-Type": "application/json" }, params.accessToken),
+      body: JSON.stringify({ name: trimmedName }),
+    }
+  );
   if (!res.ok) {
     return null;
   }
 
-  return {
-    ...existing,
-    name: trimmedName,
-    updatedAt: new Date().toISOString(),
-  };
+  const payload = (await res.json()) as { thread?: RasaThread };
+  return mapRasaThread(params.userId, payload.thread ?? {});
 }
 
 export async function deleteThreadInRasa(params: {
