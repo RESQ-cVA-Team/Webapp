@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { getRasaUrlForRequest, withUserBearerHeader } from "@/lib/rasaConfig";
 import { fetchRasaTrackerEvents, mapRasaTrackerEvents } from "@/lib/rasaHistory";
-import { putUserTokens } from "@/lib/userTokenVault";
 import { buildRasaSenderId } from "@/lib/rasaSender";
 import { createJob } from "@/lib/jobStore";
 import { publishCommittedHistoryItems, setCommittedCursorFloor } from "@/lib/sseBus";
@@ -52,17 +51,6 @@ export async function POST(req: NextRequest) {
     const rawThreadId = body?.threadId;
     const threadId = typeof rawThreadId === "number" && Number.isFinite(rawThreadId) ? rawThreadId : null;
     const senderId = buildRasaSenderId(userSub, threadId);
-
-    const tokenPayload = {
-      accessToken: String(session.accessToken),
-      accessTokenExpiresAt:
-        typeof session.accessTokenExpires === "number" ? session.accessTokenExpires : undefined,
-    };
-
-    await putUserTokens({
-      sub: userSub,
-      ...tokenPayload,
-    });
 
     const apiUrl = getRasaUrlForRequest(req.headers, new Map(req.cookies.getAll().map(c => [c.name, c.value])));
     if (!apiUrl) {

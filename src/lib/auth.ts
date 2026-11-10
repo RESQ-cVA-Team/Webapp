@@ -143,9 +143,8 @@ export const authConfig = {
       });
 
       if (account) {
-        token.accessTokenExpires = account.expires_at
-          ? account.expires_at * 1000
-          : Date.now() + 60 * 60 * 1000;
+        const accessTokenExpires = account.expires_at ? account.expires_at * 1000 : Date.now() + 60 * 60 * 1000;
+        token.accessTokenExpires = accessTokenExpires;
         token.error = undefined;
         if (sessionSubject && typeof account.access_token === "string") {
           await putUserTokens({
@@ -155,7 +154,7 @@ export const authConfig = {
             // Only used as id_token_hint at logout. Kept out of the session
             // cookie, which is re-sent on every response and must stay small.
             idToken: typeof account.id_token === "string" ? account.id_token : null,
-            accessTokenExpiresAt: token.accessTokenExpires,
+            accessTokenExpiresAt: accessTokenExpires,
           });
         }
       }
