@@ -11,7 +11,8 @@ const contentSecurityPolicy = [
   "frame-ancestors 'none'",
   "img-src 'self'",
   "object-src 'none'",
-  "script-src 'self' 'unsafe-inline'",
+  // React and Turbopack's hot reload need eval in development only.
+  isDevelopment ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'" : "script-src 'self' 'unsafe-inline'",
   "style-src 'self' 'unsafe-inline'",
   isDevelopment ? "connect-src 'self' ws: wss:" : "connect-src 'self'",
   "upgrade-insecure-requests",
