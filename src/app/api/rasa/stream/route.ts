@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { getRasaUrlForRequest } from "@/lib/rasaConfig";
 import { fetchRasaTrackerEvents } from "@/lib/rasaHistory";
-import { putUserTokens } from "@/lib/userTokenVault";
 import { buildRasaSenderId } from "@/lib/rasaSender";
 import { addSubscriberForSender, setCommittedCursorFloor } from "@/lib/sseBus";
 import { readTraceId } from "@/lib/traceId";
@@ -34,17 +33,6 @@ export async function GET(req: NextRequest) {
     threadId,
     senderId,
     performsUpstreamCall: false,
-  });
-
-  const tokenPayload = {
-    accessToken: String(session.accessToken),
-    accessTokenExpiresAt:
-      typeof session.accessTokenExpires === "number" ? session.accessTokenExpires : undefined,
-  };
-
-  await putUserTokens({
-    sub: userSub,
-    ...tokenPayload,
   });
 
   // Seed the committed cursor so new subscribers never replay already-committed events.

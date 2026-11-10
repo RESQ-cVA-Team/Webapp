@@ -216,7 +216,7 @@ export async function putUserTokens(params: {
   accessToken: string;
   refreshToken?: string | null;
   idToken?: string | null;
-  accessTokenExpiresAt?: number;
+  accessTokenExpiresAt: number;
   accessTokenRefreshedAt?: number;
 }): Promise<void> {
   const sub = normalizeSub(params.sub);
@@ -224,10 +224,7 @@ export async function putUserTokens(params: {
 
   const existingEntry = await readTokenEntry(sub);
 
-  const expiresAt =
-    typeof params.accessTokenExpiresAt === "number" && params.accessTokenExpiresAt > now()
-      ? params.accessTokenExpiresAt
-      : now() + DEFAULT_TTL_MS;
+  const expiresAt = params.accessTokenExpiresAt;
 
   const entry = {
     accessToken: params.accessToken,

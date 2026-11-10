@@ -119,12 +119,9 @@ describe("POST /api/rasa", () => {
     const res = await POST(makeRequest({ message: "hello", threadId: 1 }));
     expect(res.status).toBe(200);
 
-    expect(putUserTokensMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        sub: "u1",
-        accessToken: "tok",
-      })
-    );
+    // The session's token comes from the token store; writing it back could
+    // only replace the stored expiry with the session cookie's.
+    expect(putUserTokensMock).not.toHaveBeenCalled();
 
     const body = await res.json();
     expect(body.ok).toBe(true);
