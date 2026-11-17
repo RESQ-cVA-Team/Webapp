@@ -29,6 +29,9 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // Restoring Turbopack's dev cache after a restart left open tabs in a
+  // reload loop (a "restart" update for the entry chunk on every load).
+  experimental: { turbopackFileSystemCacheForDev: false },
   output: 'standalone',
   // Next's own require-hook resolves @swc/helpers' ESM interop files
   // (esm/_interop_require_default.js etc.) at runtime, but the standalone
