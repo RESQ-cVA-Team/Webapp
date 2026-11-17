@@ -28,36 +28,14 @@ import type {
   HistogramChartDTO,
   WaterfallChartDTO,
 } from "@/models/dto/charts";
-import { getSeriesColor } from "@/lib/chart-utils";
+import { buildLineChartRows, getSeriesColor } from "@/lib/chart-utils";
 
 const THUMBNAIL_MARGIN = { top: 5, right: 10, bottom: 0, left: 10 };
 
 
 // LINE CHART THUMBNAIL
 export function LineChartThumbnail({ chart }: { chart: LineChartDTO }) {
-  const bins: (string | number)[] = [];
-  const seen = new Set<string>();
-  chart.series.forEach((s) =>
-    s.data.forEach((p) => {
-      const k = String(p.x);
-      if (!seen.has(k)) {
-        seen.add(k);
-        bins.push(p.x);
-      }
-    }),
-  );
-  const isTimeAxis = chart.metadata?.x_axis?.type === "time";
-
-  const data = bins.map((bin) => {
-    const point: Record<string, number | string | null> = {
-      bin,
-    };
-    chart.series.forEach((s) => {
-      const val = s.data.find((p) => String(p.x) === String(bin))?.y;
-      point[s.name] = isTimeAxis && typeof val === "number" && val === 0 ? null : (val ?? null);
-    });
-    return point;
-  });
+  const data = buildLineChartRows(chart.series);
 
   return (
         <LineChart data={data} margin={THUMBNAIL_MARGIN} responsive={true} style={{ width: '100%', height: '100%', minWidth: 0, minHeight: 0 }}>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getAngelsAwardsConditions, getAngelsAwardsZones } from "@/lib/chart-utils";
+import { buildLineChartRows, getAngelsAwardsConditions, getAngelsAwardsZones } from "@/lib/chart-utils";
 
 describe("getAngelsAwardsZones", () => {
   it("draws one zone per minimum share, up to the next one", () => {
@@ -52,5 +52,20 @@ describe("getAngelsAwardsConditions", () => {
 
   it("returns nothing when Angels Awards metadata is absent", () => {
     expect(getAngelsAwardsConditions()).toEqual([]);
+  });
+});
+
+describe("buildLineChartRows", () => {
+  it("keeps zeros and leaves missing points as gaps", () => {
+    const rows = buildLineChartRows([
+      { name: "Cases", data: [{ x: "2026-Q2", y: 1 }, { x: "2026-Q3", y: 0 }, { x: "2026-Q4", y: null }] },
+      { name: "Other", data: [{ x: "2026-Q3", y: 4 }] },
+    ] as never);
+
+    expect(rows).toEqual([
+      { bin: "2026-Q2", Cases: 1, Other: null },
+      { bin: "2026-Q3", Cases: 0, Other: 4 },
+      { bin: "2026-Q4", Cases: null, Other: null },
+    ]);
   });
 });

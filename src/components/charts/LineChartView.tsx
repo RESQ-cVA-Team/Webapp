@@ -11,6 +11,7 @@ import {
 } from "recharts";
 import type { LineChartDTO } from "@/models/dto/charts";
 import {
+  buildLineChartRows,
   getAngelsAwardsConditions,
   getAngelsAwardsZones,
   getDynamicCategoryTickLayout,
@@ -27,32 +28,11 @@ interface Props {
 
 export function LineChartView({ chart }: Props) {
   const { elementRef: chartContainerRef, widthPx: chartWidthPx } = useElementWidth<HTMLDivElement>(1000);
-  const bins: (string | number)[] = [];
-  const seen = new Set<string>();
-  chart.series.forEach((s) =>
-    s.data.forEach((p) => {
-      const k = String(p.x);
-      if (!seen.has(k)) {
-        seen.add(k);
-        bins.push(p.x);
-      }
-    }),
-  );
-
   const pointLabelMap = getPointLabelMap(chart.series);
-  const isTimeAxis = chart.metadata?.x_axis?.type === "time";
-
-  const data = bins.map((bin) => {
-    const point: Record<string, number | string | null> = {
-      bin,
-      binLabel: pointLabelMap.get(String(bin)) ?? String(bin),
-    };
-    chart.series.forEach((s) => {
-      const val = s.data.find((p) => String(p.x) === String(bin))?.y;
-      point[s.name] = isTimeAxis && typeof val === "number" && val === 0 ? null : (val ?? null);
-    });
-    return point;
-  });
+  const data = buildLineChartRows(chart.series).map((row) => ({
+    ...row,
+    binLabel: pointLabelMap.get(String(row.bin)) ?? String(row.bin),
+  }));
   const tickLayout = getDynamicCategoryTickLayout({
     chartWidthPx,
     pointCount: data.length,

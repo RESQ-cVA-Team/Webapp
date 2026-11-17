@@ -49,6 +49,30 @@ export function getDynamicCategoryTickLayout({
 }
 
 
+/** One row per x value, in first-seen order, holding each series' y under its name.
+ * A point a series lacks, or whose y is null, is null (a gap); 0 stays 0. */
+export function buildLineChartRows(series: ChartSeries[]): Record<string, ChartPointValue>[] {
+  const bins: (string | number)[] = [];
+  const seen = new Set<string>();
+  for (const currentSeries of series) {
+    for (const point of currentSeries.data) {
+      const key = String(point.x);
+      if (!seen.has(key)) {
+        seen.add(key);
+        bins.push(point.x);
+      }
+    }
+  }
+
+  return bins.map((bin) => {
+    const row: Record<string, ChartPointValue> = { bin };
+    for (const currentSeries of series) {
+      row[currentSeries.name] = currentSeries.data.find((point) => String(point.x) === String(bin))?.y ?? null;
+    }
+    return row;
+  });
+}
+
 export function getPointLabelMap(series: ChartSeries[]) {
   const labelMap = new Map<string, string>();
 
